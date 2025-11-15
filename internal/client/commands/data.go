@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"gophkeeper/internal/client/grpc"
 	"io"
 	"net/http"
 	"os"
@@ -16,19 +17,21 @@ import (
 
 // DataCommands обработчики команд для работы с данными
 type DataCommands struct {
-	cfg     *config.Config
-	manager *manager.DataManager
+	cfg        *config.Config
+	manager    *manager.DataManager
+	grpcClient *grpc.GRPCClient
 }
 
 // NewDataCommands создает новый DataCommands
-func NewDataCommands(cfg *config.Config, dataManager *manager.DataManager) *DataCommands {
+func NewDataCommands(cfg *config.Config, dataManager *manager.DataManager, grpcClient *grpc.GRPCClient) *DataCommands {
 	return &DataCommands{
-		cfg:     cfg,
-		manager: dataManager,
+		cfg:        cfg,
+		manager:    dataManager,
+		grpcClient: grpcClient,
 	}
 }
 
-// Sync синхронизирует данные с сервером
+// Sync синхронизирует данные с сервером через gRPC
 func (d *DataCommands) Sync() error {
 	if d.cfg.Token == "" {
 		return fmt.Errorf("not authenticated. Please login first")
@@ -47,72 +50,31 @@ func (d *DataCommands) Sync() error {
 		}
 	}
 
-	// Подготавливаем запрос
-	req := common.SyncRequest{
-		LastSync: lastSync,
-		Data:     make([]common.SecretData, len(localSecrets)),
-	}
-
+	// Конвертируем []*common.SecretData в []common.SecretData
+	localSecretsData := make([]common.SecretData, len(localSecrets))
 	for i, secret := range localSecrets {
-		req.Data[i] = *secret
+		localSecretsData[i] = *secret
 	}
 
-	// Выполняем запрос
-	resp, err := d.makeSyncRequest(req)
+	// Выполняем синхронизацию через gRPC
+	syncResult, err := d.grpcClient.Sync(lastSync, localSecretsData)
 	if err != nil {
 		return err
 	}
 
-	// Обрабатываем конфликты (пока просто берем серверную версию)
-	for _, serverSecret := range resp.Data {
+	// Сохраняем полученные данные
+	for _, serverSecret := range syncResult.Data {
 		if err := d.manager.SaveSecret(&serverSecret); err != nil {
 			fmt.Printf("Warning: failed to save secret %s: %v\n", serverSecret.ID, err)
 		}
 	}
 
-	fmt.Printf("Sync completed. Received %d items from server\n", len(resp.Data))
-	if len(resp.Conflicts) > 0 {
-		fmt.Printf("Warning: %d conflicts detected (using server version)\n", len(resp.Conflicts))
+	fmt.Printf("Sync completed. Received %d items from server\n", len(syncResult.Data))
+	if len(syncResult.Conflicts) > 0 {
+		fmt.Printf("Warning: %d conflicts detected (using server version)\n", len(syncResult.Conflicts))
 	}
 
 	return nil
-}
-
-// makeSyncRequest выполняет запрос синхронизации
-func (d *DataCommands) makeSyncRequest(req common.SyncRequest) (*common.SyncResponse, error) {
-	url := d.cfg.ServerURL + "/api/sync"
-
-	body, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %v", err)
-	}
-
-	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	httpReq.Header.Set("Authorization", "Bearer "+d.cfg.Token)
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("sync failed: %s", string(body))
-	}
-
-	var syncResp common.SyncResponse
-	if err := json.NewDecoder(resp.Body).Decode(&syncResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
-	}
-
-	return &syncResp, nil
 }
 
 // AddLoginPassword добавляет логин/пароль

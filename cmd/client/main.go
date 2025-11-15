@@ -7,6 +7,7 @@ import (
 
 	"gophkeeper/internal/client/commands"
 	"gophkeeper/internal/client/config"
+	"gophkeeper/internal/client/grpc" // ← ДОБАВИЛИ
 	"gophkeeper/internal/client/manager"
 
 	"github.com/spf13/cobra"
@@ -25,6 +26,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+
+	// Создаем gRPC клиент
+	grpcClient, err := grpc.NewGRPCClient(cfg)
+	if err != nil {
+		log.Fatalf("Failed to create gRPC client: %v", err)
+	}
+	defer grpcClient.Close()
 
 	// Создаем корневую команду
 	var rootCmd = &cobra.Command{
@@ -48,8 +56,8 @@ func main() {
 		},
 	})
 
-	// Команды аутентификации
-	authCommands := commands.NewAuthCommands(cfg)
+	// Команды аутентификации (используют gRPC)
+	authCommands := commands.NewAuthCommands(cfg, grpcClient) // ← ПЕРЕДАЕМ gRPC клиент
 
 	var registerCmd = &cobra.Command{
 		Use:   "register [login] [password]",
@@ -84,7 +92,15 @@ func main() {
 		}
 
 		if masterPassword == "" {
-			return nil, fmt.Errorf("master password is required. Use --password flag")
+			// Запрашиваем мастер-пароль у пользователя
+			fmt.Print("Enter master password: ")
+			var input string
+			fmt.Scanln(&input)
+			masterPassword = input
+
+			if masterPassword == "" {
+				return nil, fmt.Errorf("master password is required")
+			}
 		}
 
 		if cfg.Token == "" {
@@ -106,7 +122,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			dataCommands := commands.NewDataCommands(cfg, manager)
+			dataCommands := commands.NewDataCommands(cfg, manager, grpcClient) // ← ПЕРЕДАЕМ gRPC клиент
 			if err := dataCommands.Sync(); err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)
@@ -126,7 +142,7 @@ func main() {
 			}
 
 			site, _ := cmd.Flags().GetString("site")
-			dataCommands := commands.NewDataCommands(cfg, manager)
+			dataCommands := commands.NewDataCommands(cfg, manager, grpcClient)
 			if err := dataCommands.AddLoginPassword(args[0], args[1], args[2], site); err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)
@@ -145,7 +161,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			dataCommands := commands.NewDataCommands(cfg, manager)
+			dataCommands := commands.NewDataCommands(cfg, manager, grpcClient)
 			if err := dataCommands.List(); err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)

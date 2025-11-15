@@ -1,42 +1,34 @@
 package commands
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-
 	"gophkeeper/internal/client/config"
-	"gophkeeper/internal/common"
+	"gophkeeper/internal/client/grpc" // ← ДОБАВИЛИ
 )
 
 // AuthCommands обработчики команд аутентификации
 type AuthCommands struct {
-	cfg *config.Config
+	cfg        *config.Config
+	grpcClient *grpc.GRPCClient // ← ДОБАВИЛИ
 }
 
 // NewAuthCommands создает новый AuthCommands
-func NewAuthCommands(cfg *config.Config) *AuthCommands {
+func NewAuthCommands(cfg *config.Config, grpcClient *grpc.GRPCClient) *AuthCommands {
 	return &AuthCommands{
-		cfg: cfg,
+		cfg:        cfg,
+		grpcClient: grpcClient, // ← ДОБАВИЛИ
 	}
 }
 
-// Register регистрирует нового пользователя
+// Register регистрирует нового пользователя через gRPC
 func (a *AuthCommands) Register(login, password string) error {
-	req := common.AuthRequest{
-		Login:    login,
-		Password: password,
-	}
-
-	resp, err := a.makeAuthRequest("/api/register", req)
+	authResult, err := a.grpcClient.Register(login, password) // ← ИСПОЛЬЗУЕМ gRPC
 	if err != nil {
 		return err
 	}
 
-	a.cfg.Token = resp.Token
-	a.cfg.UserID = resp.User.ID.String()
+	a.cfg.Token = authResult.Token
+	a.cfg.UserID = authResult.User.ID.String()
 
 	if err := config.SaveConfig(a.cfg); err != nil {
 		return fmt.Errorf("failed to save config: %v", err)
@@ -46,20 +38,15 @@ func (a *AuthCommands) Register(login, password string) error {
 	return nil
 }
 
-// Login выполняет вход пользователя
+// Login выполняет вход пользователя через gRPC
 func (a *AuthCommands) Login(login, password string) error {
-	req := common.AuthRequest{
-		Login:    login,
-		Password: password,
-	}
-
-	resp, err := a.makeAuthRequest("/api/login", req)
+	authResult, err := a.grpcClient.Login(login, password) // ← ИСПОЛЬЗУЕМ gRPC
 	if err != nil {
 		return err
 	}
 
-	a.cfg.Token = resp.Token
-	a.cfg.UserID = resp.User.ID.String()
+	a.cfg.Token = authResult.Token
+	a.cfg.UserID = authResult.User.ID.String()
 
 	if err := config.SaveConfig(a.cfg); err != nil {
 		return fmt.Errorf("failed to save config: %v", err)
@@ -67,32 +54,4 @@ func (a *AuthCommands) Login(login, password string) error {
 
 	fmt.Printf("Successfully logged in as: %s\n", login)
 	return nil
-}
-
-// makeAuthRequest выполняет запрос аутентификации
-func (a *AuthCommands) makeAuthRequest(endpoint string, req common.AuthRequest) (*common.AuthResponse, error) {
-	url := a.cfg.ServerURL + endpoint
-
-	body, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %v", err)
-	}
-
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("auth failed: %s", string(body))
-	}
-
-	var authResp common.AuthResponse
-	if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
-	}
-
-	return &authResp, nil
 }
