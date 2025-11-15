@@ -7,14 +7,16 @@ import (
 
 	"gophkeeper/internal/client/commands"
 	"gophkeeper/internal/client/config"
+	"gophkeeper/internal/client/manager"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
+	version        = "dev"
+	commit         = "none"
+	date           = "unknown"
+	masterPassword string
 )
 
 func main() {
@@ -31,7 +33,8 @@ func main() {
 		Long:  "GophKeeper is a secure client-server password manager",
 	}
 
-	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	// Флаг для мастер-пароля
+	rootCmd.PersistentFlags().StringVarP(&masterPassword, "password", "p", "", "Master password for encryption")
 
 	// Команда версии
 	rootCmd.AddCommand(&cobra.Command{
@@ -72,7 +75,85 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(registerCmd, loginCmd)
+	// Команды данных (требуют аутентификации и мастер-пароля)
+	var dataManager *manager.DataManager
+
+	getDataManager := func() (*manager.DataManager, error) {
+		if dataManager != nil {
+			return dataManager, nil
+		}
+
+		if masterPassword == "" {
+			return nil, fmt.Errorf("master password is required. Use --password flag")
+		}
+
+		if cfg.Token == "" {
+			return nil, fmt.Errorf("not authenticated. Please login first")
+		}
+
+		var err error
+		dataManager, err = manager.NewDataManager(cfg, masterPassword)
+		return dataManager, err
+	}
+
+	var syncCmd = &cobra.Command{
+		Use:   "sync",
+		Short: "Synchronize data with server",
+		Run: func(cmd *cobra.Command, args []string) {
+			manager, err := getDataManager()
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			dataCommands := commands.NewDataCommands(cfg, manager)
+			if err := dataCommands.Sync(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	var addLoginCmd = &cobra.Command{
+		Use:   "add-login [name] [login] [password]",
+		Short: "Add login/password",
+		Args:  cobra.ExactArgs(3),
+		Run: func(cmd *cobra.Command, args []string) {
+			manager, err := getDataManager()
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			site, _ := cmd.Flags().GetString("site")
+			dataCommands := commands.NewDataCommands(cfg, manager)
+			if err := dataCommands.AddLoginPassword(args[0], args[1], args[2], site); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+	addLoginCmd.Flags().String("site", "", "Website URL")
+
+	var listCmd = &cobra.Command{
+		Use:   "list",
+		Short: "List all stored data",
+		Run: func(cmd *cobra.Command, args []string) {
+			manager, err := getDataManager()
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			dataCommands := commands.NewDataCommands(cfg, manager)
+			if err := dataCommands.List(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	rootCmd.AddCommand(registerCmd, loginCmd, syncCmd, addLoginCmd, listCmd)
 
 	// Запускаем CLI
 	if err := rootCmd.Execute(); err != nil {
