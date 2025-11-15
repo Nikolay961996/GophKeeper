@@ -34,7 +34,7 @@ const (
 	LoginPassword DataType = "login_password"
 	TextData      DataType = "text_data"
 	BinaryData    DataType = "binary_data"
-	CardData      DataType = "card_data"
+	Card          DataType = "card_data"
 )
 
 // LoginPasswordData структура для данных логин/пароль

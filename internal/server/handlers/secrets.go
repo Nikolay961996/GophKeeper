@@ -64,9 +64,15 @@ func (h *SecretsHandler) Sync(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Преобразуем []*common.SecretData в []common.SecretData для ответа
+	serverSecretsResponse := make([]common.SecretData, len(serverSecrets))
+	for i, secret := range serverSecrets {
+		serverSecretsResponse[i] = *secret
+	}
+
 	response := common.SyncResponse{
 		LastSync:  time.Now(),
-		Data:      serverSecrets,
+		Data:      serverSecretsResponse,
 		Conflicts: conflicts,
 	}
 

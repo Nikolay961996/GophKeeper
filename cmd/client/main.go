@@ -31,6 +31,8 @@ func main() {
 		Long:  "GophKeeper is a secure client-server password manager",
 	}
 
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
 	// Команда версии
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "version",

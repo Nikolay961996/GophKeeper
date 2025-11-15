@@ -15,19 +15,25 @@ import (
 	"gophkeeper/storage"
 )
 
+// Config представляет конфигурацию сервера
+type Config struct {
+	Addr      string
+	JWTSecret string
+}
+
 // Server представляет HTTP сервер
 type Server struct {
 	httpServer *http.Server
 	storage    storage.Storage
-	jwtSecret  string
+	config     *Config
 }
 
 // NewServer создает новый экземпляр Server
-func NewServer(addr string, storage storage.Storage, jwtSecret string) *Server {
-	authMiddleware := middleware.NewAuthMiddleware(jwtSecret)
+func NewServer(cfg *Config, storage storage.Storage) *Server {
+	authMiddleware := middleware.NewAuthMiddleware(cfg.JWTSecret)
 
 	// Создаем обработчики
-	authHandler := handlers.NewAuthHandler(storage, jwtSecret)
+	authHandler := handlers.NewAuthHandler(storage, cfg.JWTSecret)
 	secretsHandler := handlers.NewSecretsHandler(storage)
 
 	// Настраиваем маршруты
@@ -45,13 +51,19 @@ func NewServer(addr string, storage storage.Storage, jwtSecret string) *Server {
 	// Обертываем защищенные маршруты middleware аутентификации
 	mux.Handle("/api/", authMiddleware.Middleware(protectedMux))
 
+	// Health check
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"status": "ok", "timestamp": "%s"}`, time.Now().Format(time.RFC3339))
+	})
+
 	return &Server{
 		httpServer: &http.Server{
-			Addr:    addr,
+			Addr:    cfg.Addr,
 			Handler: mux,
 		},
-		storage:   storage,
-		jwtSecret: jwtSecret,
+		storage: storage,
+		config:  cfg,
 	}
 }
 
@@ -61,8 +73,8 @@ func (s *Server) Start() error {
 	return s.httpServer.ListenAndServe()
 }
 
-// Stop останавливает сервер
-func (s *Server) Stop(ctx context.Context) error {
+// GracefulStop останавливает сервер
+func (s *Server) GracefulStop(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }
 
@@ -79,6 +91,9 @@ func (s *Server) Run() {
 		}
 	}()
 
+	log.Printf("Server is running on %s", s.httpServer.Addr)
+	log.Printf("Health check available at http://%s/health", s.httpServer.Addr)
+
 	// Ждем сигнал остановки
 	<-stop
 	log.Println("Shutting down server...")
@@ -87,7 +102,7 @@ func (s *Server) Run() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := s.Stop(ctx); err != nil {
+	if err := s.GracefulStop(ctx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 

@@ -28,6 +28,13 @@ func (s *MemoryStorage) CreateUser(user *common.User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Проверяем, нет ли уже пользователя с таким логином
+	for _, u := range s.users {
+		if u.Login == user.Login {
+			return &StorageError{"user already exists"}
+		}
+	}
+
 	s.users[user.ID] = user
 	s.secrets[user.ID] = make([]*common.SecretData, 0)
 	return nil
@@ -63,7 +70,12 @@ func (s *MemoryStorage) SaveSecretData(data *common.SecretData) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	userSecrets := s.secrets[data.UserID]
+	userSecrets, exists := s.secrets[data.UserID]
+	if !exists {
+		return ErrUserNotFound
+	}
+
+	// Проверяем, существует ли уже запись с таким ID
 	for i, secret := range userSecrets {
 		if secret.ID == data.ID {
 			userSecrets[i] = data
@@ -71,6 +83,7 @@ func (s *MemoryStorage) SaveSecretData(data *common.SecretData) error {
 		}
 	}
 
+	// Если не существует, добавляем новую запись
 	s.secrets[data.UserID] = append(userSecrets, data)
 	return nil
 }
@@ -85,7 +98,10 @@ func (s *MemoryStorage) GetUserSecrets(userID uuid.UUID) ([]*common.SecretData, 
 		return nil, ErrUserNotFound
 	}
 
-	return secrets, nil
+	// Возвращаем копию, чтобы избежать гонок данных
+	result := make([]*common.SecretData, len(secrets))
+	copy(result, secrets)
+	return result, nil
 }
 
 // GetSecretsSince возвращает секреты, измененные после указанной даты
@@ -126,19 +142,4 @@ func (s *MemoryStorage) DeleteSecret(userID, secretID uuid.UUID) error {
 	}
 
 	return ErrSecretNotFound
-}
-
-// Ошибки хранилища
-var (
-	ErrUserNotFound   = &StorageError{"user not found"}
-	ErrSecretNotFound = &StorageError{"secret not found"}
-)
-
-// StorageError ошибка хранилища
-type StorageError struct {
-	msg string
-}
-
-func (e *StorageError) Error() string {
-	return e.msg
 }

@@ -8,7 +8,7 @@ import (
 
 var (
 	addr      = flag.String("addr", ":8080", "Server address")
-	jwtSecret = flag.String("jwt-secret", "default-secret-key", "JWT secret key")
+	jwtSecret = flag.String("jwt-secret", "default-secret-key-change-in-production", "JWT secret key")
 )
 
 func main() {
@@ -17,7 +17,13 @@ func main() {
 	// Инициализируем хранилище
 	storage := storage.NewMemoryStorage()
 
+	// Конфигурация сервера
+	cfg := &server.Config{
+		Addr:      *addr,
+		JWTSecret: *jwtSecret,
+	}
+
 	// Создаем и запускаем сервер
-	srv := server.NewServer(*addr, storage, *jwtSecret)
+	srv := server.NewServer(cfg, storage)
 	srv.Run()
 }
