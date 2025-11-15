@@ -77,3 +77,13 @@ type SyncResponse struct {
 	Data      []SecretData `json:"data"`
 	Conflicts []SecretData `json:"conflicts,omitempty"`
 }
+
+// ParseUUID парсит строку в UUID
+func ParseUUID(s string) (uuid.UUID, error) {
+	return uuid.Parse(s)
+}
+
+// MustParseUUID парсит строку в UUID, паникует при ошибке
+func MustParseUUID(s string) uuid.UUID {
+	return uuid.MustParse(s)
+}

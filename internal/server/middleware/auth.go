@@ -13,7 +13,8 @@ import (
 type contextKey string
 
 const (
-	userIDKey contextKey = "userID"
+	// UserIDKey ключ для хранения userID в контексте
+	UserIDKey contextKey = "userID"
 )
 
 // AuthMiddleware middleware для аутентификации JWT
@@ -51,13 +52,13 @@ func (m *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		}
 
 		// Добавляем userID в контекст
-		ctx := context.WithValue(r.Context(), userIDKey, claims.UserID)
+		ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 // GetUserIDFromContext возвращает userID из контекста
 func GetUserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
-	userID, ok := ctx.Value(userIDKey).(uuid.UUID)
+	userID, ok := ctx.Value(UserIDKey).(uuid.UUID)
 	return userID, ok
 }
