@@ -1,9 +1,8 @@
 package common
 
 import (
-	"time"
-
 	"github.com/google/uuid"
+	"time"
 )
 
 // User представляет пользователя системы
@@ -22,7 +21,7 @@ type SecretData struct {
 	Name      string    `json:"name"`
 	Data      []byte    `json:"data"` // Зашифрованные данные
 	Metadata  string    `json:"metadata"`
-	Version   int       `json:"version"`
+	Version   int       `json:"version"` // ← ВАЖНО: для разрешения конфликтов
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -34,7 +33,7 @@ const (
 	LoginPassword DataType = "login_password"
 	TextData      DataType = "text_data"
 	BinaryData    DataType = "binary_data"
-	Card          DataType = "card_data"
+	CardData      DataType = "card_data" // ← ИСПРАВЛЕНО: было "Card"
 )
 
 // LoginPasswordData структура для данных логин/пароль
@@ -53,31 +52,6 @@ type CardData struct {
 	Bank   string `json:"bank,omitempty"`
 }
 
-// AuthRequest запрос на аутентификацию
-type AuthRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-}
-
-// AuthResponse ответ на аутентификацию
-type AuthResponse struct {
-	Token string `json:"token"`
-	User  User   `json:"user"`
-}
-
-// SyncRequest запрос на синхронизацию
-type SyncRequest struct {
-	LastSync time.Time    `json:"last_sync"`
-	Data     []SecretData `json:"data"`
-}
-
-// SyncResponse ответ на синхронизацию
-type SyncResponse struct {
-	LastSync  time.Time    `json:"last_sync"`
-	Data      []SecretData `json:"data"`
-	Conflicts []SecretData `json:"conflicts,omitempty"`
-}
-
 // ParseUUID парсит строку в UUID
 func ParseUUID(s string) (uuid.UUID, error) {
 	return uuid.Parse(s)
@@ -87,3 +61,11 @@ func ParseUUID(s string) (uuid.UUID, error) {
 func MustParseUUID(s string) uuid.UUID {
 	return uuid.MustParse(s)
 }
+
+// Now возвращает текущее время в UTC
+func Now() time.Time {
+	return time.Now().UTC()
+}
+
+// TokenExpiration время жизни токена
+const TokenExpiration = 24 * time.Hour

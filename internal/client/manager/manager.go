@@ -73,7 +73,8 @@ func (m *DataManager) SaveCardData(name, number, expiry, cvv, holder, bank strin
 		Bank:   bank,
 	}
 
-	secret, err := m.crypto.EncryptData(common.Card, data, name)
+	// ИСПРАВЛЕНО: common.CardData вместо common.Card
+	secret, err := m.crypto.EncryptData(common.CardData, data, name)
 	if err != nil {
 		return err
 	}

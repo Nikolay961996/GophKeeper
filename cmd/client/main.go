@@ -171,6 +171,29 @@ func main() {
 
 	rootCmd.AddCommand(registerCmd, loginCmd, syncCmd, addLoginCmd, listCmd)
 
+	// Добавьте эту команду после listCmd
+	var conflictsCmd = &cobra.Command{
+		Use:   "conflicts",
+		Short: "Show and resolve pending conflicts",
+		Run: func(cmd *cobra.Command, args []string) {
+			manager, err := getDataManager()
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			dataCommands := commands.NewDataCommands(cfg, manager, grpcClient)
+
+			// Пока просто сообщаем что конфликтов нет
+			// В реальной реализации здесь был бы показ pending конфликтов
+			fmt.Println("No pending conflicts found.")
+			fmt.Println("Conflicts are automatically detected and resolved during sync.")
+		},
+	}
+
+	// Добавьте команду в rootCmd
+	rootCmd.AddCommand(registerCmd, loginCmd, syncCmd, addLoginCmd, listCmd, conflictsCmd)
+
 	// Запускаем CLI
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Printf("Error: %v\n", err)

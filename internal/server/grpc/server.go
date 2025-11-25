@@ -9,7 +9,6 @@ import (
 
 	"gophkeeper/api"
 	"gophkeeper/internal/common"
-	"gophkeeper/internal/server/middleware"
 	"gophkeeper/storage"
 
 	"github.com/google/uuid"
@@ -18,6 +17,9 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
+
+// Константа для ключа контекста (перенесем из middleware)
+const userIDKey = "userID"
 
 // GRPCServer представляет gRPC сервер
 type GRPCServer struct {
@@ -195,15 +197,24 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 		serverSecrets[i] = *secretPtr
 	}
 
-	// Сохраняем изменения от клиента
+	// Сохраняем изменения от клиента и собираем конфликты
 	var conflicts []common.SecretData
 	for _, clientSecret := range syncOp.Data {
 		existingSecret, _ := s.getSecretByID(userID, clientSecret.ID)
 
-		if existingSecret != nil && existingSecret.UpdatedAt.After(clientSecret.UpdatedAt) {
-			// Конфликт версий
-			conflicts = append(conflicts, *existingSecret)
-			continue
+		if existingSecret != nil {
+			// Проверяем версию для обнаружения конфликтов
+			if existingSecret.Version > clientSecret.Version {
+				// Конфликт: серверная версия новее
+				conflicts = append(conflicts, *existingSecret)
+				continue
+			}
+
+			// Инкрементируем версию при сохранении
+			clientSecret.Version = existingSecret.Version + 1
+		} else {
+			// Новая запись
+			clientSecret.Version = 1
 		}
 
 		clientSecret.UserID = userID
@@ -225,7 +236,7 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 // UploadFile потоковая загрузка файла
 func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
 	// Используем правильный ключ контекста
-	userIDValue := stream.Context().Value(middleware.UserIDKey)
+	userIDValue := stream.Context().Value(userIDKey)
 	if userIDValue == nil {
 		return status.Error(codes.Unauthenticated, "user not authenticated")
 	}
@@ -281,7 +292,7 @@ func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
 // DownloadFile потоковая выгрузка файла
 func (s *GRPCServer) DownloadFile(req *api.DownloadRequest, stream api.GophKeeper_DownloadFileServer) error {
 	// Используем правильный ключ контекста
-	userIDValue := stream.Context().Value(middleware.UserIDKey)
+	userIDValue := stream.Context().Value(userIDKey)
 	if userIDValue == nil {
 		return status.Error(codes.Unauthenticated, "user not authenticated")
 	}
@@ -353,7 +364,7 @@ func (s *GRPCServer) unaryAuthInterceptor(ctx context.Context, req interface{}, 
 	}
 
 	// Используем правильный ключ
-	ctx = context.WithValue(ctx, middleware.UserIDKey, userID)
+	ctx = context.WithValue(ctx, userIDKey, userID)
 	return handler(ctx, req)
 }
 
@@ -365,7 +376,7 @@ func (s *GRPCServer) streamAuthInterceptor(srv interface{}, ss grpc.ServerStream
 	}
 
 	// Используем правильный ключ
-	ctx := context.WithValue(ss.Context(), middleware.UserIDKey, userID)
+	ctx := context.WithValue(ss.Context(), userIDKey, userID)
 	return handler(srv, &wrappedStream{ss, ctx})
 }
 

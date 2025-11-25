@@ -1,16 +1,14 @@
 package commands
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"gophkeeper/internal/client/grpc"
-	"io"
-	"net/http"
+	"github.com/google/uuid"
 	"os"
 	"time"
 
 	"gophkeeper/internal/client/config"
+	"gophkeeper/internal/client/conflict"
+	"gophkeeper/internal/client/grpc"
 	"gophkeeper/internal/client/manager"
 	"gophkeeper/internal/common"
 )
@@ -20,6 +18,7 @@ type DataCommands struct {
 	cfg        *config.Config
 	manager    *manager.DataManager
 	grpcClient *grpc.GRPCClient
+	resolver   *conflict.Resolver
 }
 
 // NewDataCommands создает новый DataCommands
@@ -28,6 +27,7 @@ func NewDataCommands(cfg *config.Config, dataManager *manager.DataManager, grpcC
 		cfg:        cfg,
 		manager:    dataManager,
 		grpcClient: grpcClient,
+		resolver:   conflict.NewResolver(),
 	}
 }
 
@@ -62,17 +62,32 @@ func (d *DataCommands) Sync() error {
 		return err
 	}
 
-	// Сохраняем полученные данные
-	for _, serverSecret := range syncResult.Data {
+	// Обнаруживаем конфликты
+	conflictManager := common.NewConflictManager()
+	detectedConflicts := conflictManager.DetectConflicts(localSecretsData, syncResult.Data, lastSync)
+
+	// Обрабатываем конфликты если есть
+	if len(detectedConflicts) > 0 {
+		fmt.Printf("\n🚨 Found %d conflicts during sync!\n", len(detectedConflicts))
+		resolutions, err := d.resolver.ResolveConflicts(detectedConflicts)
+		if err != nil {
+			return fmt.Errorf("error resolving conflicts: %v", err)
+		}
+
+		// Применяем разрешения
+		d.applyResolutions(resolutions)
+	}
+
+	// Сохраняем неконфликтные данные с сервера
+	nonConflictData := d.filterNonConflictData(syncResult.Data, detectedConflicts)
+	for _, serverSecret := range nonConflictData {
 		if err := d.manager.SaveSecret(&serverSecret); err != nil {
 			fmt.Printf("Warning: failed to save secret %s: %v\n", serverSecret.ID, err)
 		}
 	}
 
-	fmt.Printf("Sync completed. Received %d items from server\n", len(syncResult.Data))
-	if len(syncResult.Conflicts) > 0 {
-		fmt.Printf("Warning: %d conflicts detected (using server version)\n", len(syncResult.Conflicts))
-	}
+	fmt.Printf("✅ Sync completed. Received %d items, resolved %d conflicts\n",
+		len(syncResult.Data), len(detectedConflicts))
 
 	return nil
 }
@@ -154,7 +169,7 @@ func (d *DataCommands) Get(id string) error {
 		}
 		fmt.Printf("Login: %s\nPassword: %s\nSite: %s\n", data.Login, data.Password, data.Site)
 
-	case common.Card:
+	case common.CardData:
 		data, err := d.manager.GetCardData(id)
 		if err != nil {
 			return err
@@ -177,4 +192,58 @@ func (d *DataCommands) Get(id string) error {
 	}
 
 	return nil
+}
+
+// handleConflicts обрабатывает конфликты автоматически (пока просто логируем)
+func (d *DataCommands) handleConflicts(conflicts []common.SecretData) int {
+	if len(conflicts) == 0 {
+		return 0
+	}
+
+	fmt.Printf("Found %d conflicts:\n", len(conflicts))
+	for i, conflict := range conflicts {
+		fmt.Printf("%d. %s (v%d) - please resolve manually\n",
+			i+1, conflict.Metadata, conflict.Version)
+	}
+
+	// TODO: Реализовать интерактивное разрешение конфликтов
+	// Пока просто используем серверную версию
+	for _, conflict := range conflicts {
+		d.manager.SaveSecret(&conflict)
+	}
+
+	return len(conflicts)
+}
+
+// applyResolutions применяет разрешения конфликтов
+func (d *DataCommands) applyResolutions(resolutions []common.ConflictResolution) {
+	appliedCount := 0
+	for _, resolution := range resolutions {
+		if resolution.Winner != nil {
+			if err := d.manager.SaveSecret(resolution.Winner); err != nil {
+				fmt.Printf("Warning: failed to apply resolution for conflict %s: %v\n",
+					resolution.ConflictID, err)
+			} else {
+				appliedCount++
+			}
+		}
+	}
+	fmt.Printf("Applied %d conflict resolutions\n", appliedCount)
+}
+
+// filterNonConflictData фильтрует данные без конфликтов
+func (d *DataCommands) filterNonConflictData(serverData []common.SecretData, conflicts []common.Conflict) []common.SecretData {
+	conflictIDs := make(map[uuid.UUID]bool)
+	for _, conflict := range conflicts {
+		conflictIDs[conflict.SecretID] = true
+	}
+
+	var nonConflict []common.SecretData
+	for _, secret := range serverData {
+		if !conflictIDs[secret.ID] {
+			nonConflict = append(nonConflict, secret)
+		}
+	}
+
+	return nonConflict
 }

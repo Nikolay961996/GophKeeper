@@ -21,7 +21,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	config := &Config{
-		ServerURL: "http://localhost:8080",
+		ServerURL: "localhost:8081", // ← ИЗМЕНИЛИ на gRPC порт
 	}
 
 	data, err := os.ReadFile(configPath)
