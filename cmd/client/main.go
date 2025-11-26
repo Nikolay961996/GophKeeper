@@ -182,7 +182,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			dataCommands := commands.NewDataCommands(cfg, manager, grpcClient)
+			_ = commands.NewDataCommands(cfg, manager, grpcClient)
 
 			// Пока просто сообщаем что конфликтов нет
 			// В реальной реализации здесь был бы показ pending конфликтов

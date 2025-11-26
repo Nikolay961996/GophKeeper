@@ -162,28 +162,28 @@ func (d *DataCommands) Get(id string) error {
 	}
 
 	switch secret.Type {
-	case common.LoginPassword:
+	case common.LoginPasswordType:
 		data, err := d.manager.GetLoginPassword(id)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Login: %s\nPassword: %s\nSite: %s\n", data.Login, data.Password, data.Site)
 
-	case common.CardData:
+	case common.CardDataType:
 		data, err := d.manager.GetCardData(id)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Number: %s\nExpiry: %s\nHolder: %s\nBank: %s\n", data.Number, data.Expiry, data.Holder, data.Bank)
 
-	case common.TextData:
+	case common.TextDataType:
 		data, err := d.manager.GetTextData(id)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Text: %s\n", data)
 
-	case common.BinaryData:
+	case common.BinaryDataType:
 		data, err := d.manager.GetBinaryData(id)
 		if err != nil {
 			return err

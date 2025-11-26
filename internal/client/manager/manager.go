@@ -51,7 +51,7 @@ func (m *DataManager) SaveLoginPassword(name, login, password, site string) erro
 		Site:     site,
 	}
 
-	secret, err := m.crypto.EncryptData(common.LoginPassword, data, name)
+	secret, err := m.crypto.EncryptData(common.LoginPasswordType, data, name)
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (m *DataManager) SaveCardData(name, number, expiry, cvv, holder, bank strin
 	}
 
 	// ИСПРАВЛЕНО: common.CardData вместо common.Card
-	secret, err := m.crypto.EncryptData(common.CardData, data, name)
+	secret, err := m.crypto.EncryptData(common.CardDataType, data, name)
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (m *DataManager) SaveCardData(name, number, expiry, cvv, holder, bank strin
 
 // SaveTextData сохраняет текстовые данные
 func (m *DataManager) SaveTextData(name, text string) error {
-	secret, err := m.crypto.EncryptData(common.TextData, text, name)
+	secret, err := m.crypto.EncryptData(common.TextDataType, text, name)
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (m *DataManager) SaveTextData(name, text string) error {
 
 // SaveBinaryData сохраняет бинарные данные
 func (m *DataManager) SaveBinaryData(name string, data []byte) error {
-	secret, err := m.crypto.EncryptData(common.BinaryData, data, name)
+	secret, err := m.crypto.EncryptData(common.BinaryDataType, data, name)
 	if err != nil {
 		return err
 	}

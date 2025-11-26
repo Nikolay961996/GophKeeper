@@ -270,7 +270,7 @@ func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
 	secret := &common.SecretData{
 		ID:        uuid.MustParse(fileID),
 		UserID:    userID,
-		Type:      common.BinaryData,
+		Type:      common.BinaryDataType,
 		Metadata:  fileName,
 		Data:      fileData,
 		Version:   1,
@@ -314,7 +314,7 @@ func (s *GRPCServer) DownloadFile(req *api.DownloadRequest, stream api.GophKeepe
 
 	var fileSecret *common.SecretData
 	for _, secret := range secrets {
-		if secret.ID == fileID && secret.Type == common.BinaryData {
+		if secret.ID == fileID && secret.Type == common.BinaryDataType {
 			fileSecret = secret
 			break
 		}

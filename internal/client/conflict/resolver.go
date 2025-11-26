@@ -96,7 +96,7 @@ func (r *Resolver) displaySecretPreview(secret *common.SecretData) {
 	fmt.Printf("  Size: %d bytes\n", len(secret.Data))
 
 	// Для текстовых данных можем показать превью
-	if secret.Type == common.TextData {
+	if secret.Type == common.TextDataType {
 		// В реальной реализации здесь была бы попытка расшифровки
 		fmt.Printf("  Preview: [encrypted text data]\n")
 	}
