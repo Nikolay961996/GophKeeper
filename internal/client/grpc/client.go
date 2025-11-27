@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"time"
 
@@ -27,7 +28,8 @@ type GRPCClient struct {
 func NewGRPCClient(cfg *config.Config) (*GRPCClient, error) {
 	grpcAddr := "localhost:8081"
 
-	conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to gRPC server: %v", err)
 	}
@@ -174,7 +176,12 @@ func (c *GRPCClient) UploadFile(filePath, name string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file: %v", err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Fatalf("failed to close file: %v", err)
+		}
+	}(file)
 
 	stream, err := c.client.UploadFile(c.withAuth(context.Background()))
 	if err != nil {
@@ -238,7 +245,12 @@ func (c *GRPCClient) DownloadFile(fileID, outputPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file: %v", err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Fatalf("close failed: %v", err)
+		}
+	}(file)
 
 	var fileName string
 	var totalSize int

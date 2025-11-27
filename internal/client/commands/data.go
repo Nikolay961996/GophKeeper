@@ -213,15 +213,15 @@ func (d *DataCommands) handleConflicts(conflicts []common.SecretData) int {
 	}
 
 	fmt.Printf("Found %d conflicts:\n", len(conflicts))
-	for i, conflict := range conflicts {
+	for i, c := range conflicts {
 		fmt.Printf("%d. %s (v%d) - please resolve manually\n",
-			i+1, conflict.Metadata, conflict.Version)
+			i+1, c.Metadata, c.Version)
 	}
 
 	// TODO: Реализовать интерактивное разрешение конфликтов
 	// Пока просто используем серверную версию
-	for _, conflict := range conflicts {
-		d.manager.SaveSecret(&conflict)
+	for _, c := range conflicts {
+		_ = d.manager.SaveSecret(&c)
 	}
 
 	return len(conflicts)
@@ -246,8 +246,8 @@ func (d *DataCommands) applyResolutions(resolutions []common.ConflictResolution)
 // filterNonConflictData фильтрует данные без конфликтов
 func (d *DataCommands) filterNonConflictData(serverData []common.SecretData, conflicts []common.Conflict) []common.SecretData {
 	conflictIDs := make(map[uuid.UUID]bool)
-	for _, conflict := range conflicts {
-		conflictIDs[conflict.SecretID] = true
+	for _, c := range conflicts {
+		conflictIDs[c.SecretID] = true
 	}
 
 	var nonConflict []common.SecretData

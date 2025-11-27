@@ -16,9 +16,9 @@ var (
 func main() {
 	flag.Parse()
 
-	storage := storage.NewMemoryStorage()
+	s := storage.NewMemoryStorage()
 
-	grpcServer := grpc.NewGRPCServer(storage, *jwtSecret)
+	grpcServer := grpc.NewGRPCServer(s, *jwtSecret)
 	log.Printf("Starting gRPC server on %s", *grpcAddr)
 
 	if err := grpcServer.Start(*grpcAddr); err != nil {
