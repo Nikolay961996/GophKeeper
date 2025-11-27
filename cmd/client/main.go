@@ -152,6 +152,25 @@ func main() {
 	}
 	addLoginCmd.Flags().String("site", "", "Website URL")
 
+	var addCardCmd = &cobra.Command{
+		Use:   "add-card [name] [number] [expiry] [cvv] [holder] [bank]",
+		Short: "Add card data",
+		Args:  cobra.ExactArgs(6),
+		Run: func(cmd *cobra.Command, args []string) {
+			m, err := getDataManager(true)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
+			if err := dataCommands.AddCard(args[0], args[1], args[2], args[3], args[4], args[5]); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
 	var listCmd = &cobra.Command{
 		Use:   "list",
 		Short: "List all stored data",
@@ -233,7 +252,7 @@ func main() {
 	}
 
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
-	rootCmd.AddCommand(registerCmd, loginCmd, syncCmd, addLoginCmd, listCmd, conflictsCmd, showCmd, showByNameCmd)
+	rootCmd.AddCommand(registerCmd, loginCmd, syncCmd, addLoginCmd, listCmd, conflictsCmd, showCmd, showByNameCmd, addCardCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Printf("Error: %v\n", err)

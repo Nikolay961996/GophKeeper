@@ -3,6 +3,7 @@ package manager
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"log"
 	"os"
 	"path/filepath"
@@ -284,6 +285,13 @@ func (m *DataManager) loadLocalData() error {
 func (m *DataManager) saveLocalData() error {
 	var secrets []*common.SecretData
 	for _, secret := range m.localData {
+		if uuid.Nil == secret.UserID {
+			userID, err := uuid.Parse(m.cfg.UserID)
+			if err != nil {
+				return err
+			}
+			secret.UserID = userID
+		}
 		secrets = append(secrets, secret)
 	}
 
