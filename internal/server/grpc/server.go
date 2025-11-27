@@ -229,11 +229,10 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 	return common.CreateSuccessResponse(syncResult)
 }
 
-// UploadFile потоковая загрузка файла
+// UploadFile потоковая загрузка файла чанками
 func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
-	log.Println("UploadFile")
+	log.Println("UploadFile - starting chunked upload")
 
-	// Используем правильный ключ контекста
 	userIDValue := stream.Context().Value(userIDKey)
 	if userIDValue == nil {
 		return status.Error(codes.Unauthenticated, "user not authenticated")
@@ -244,9 +243,20 @@ func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
 		return status.Error(codes.Unauthenticated, "invalid user ID")
 	}
 
-	var fileData []byte
-	var fileName string
-	var fileID string
+	// Проверяем, поддерживает ли хранилище работу с файлами
+	fileChecker, ok := s.storage.(storage.FileStorageChecker)
+	if !ok || !fileChecker.SupportsFiles() {
+		return status.Error(codes.Unimplemented, "file storage not supported")
+	}
+
+	fileStorage, ok := s.storage.(storage.FileStorage)
+	if !ok {
+		return status.Error(codes.Unimplemented, "file storage not supported")
+	}
+
+	var fileMetadata *storage.FileMetadata
+	var receivedChunks int
+	var totalSize int64
 
 	for {
 		chunk, err := stream.Recv()
@@ -257,41 +267,57 @@ func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
 			return status.Error(codes.Internal, fmt.Sprintf("failed to receive chunk: %v", err))
 		}
 
-		if fileID == "" {
-			fileID = chunk.FileId
-			fileName = chunk.FileName
+		// Создаем метаданные при получении первого чанка
+		if fileMetadata == nil {
+			fileMetadata = &storage.FileMetadata{
+				ID:          uuid.MustParse(chunk.FileId),
+				UserID:      userID,
+				FileName:    chunk.FileName,
+				TotalChunks: int(chunk.TotalChunks),
+				ChunkSize:   len(chunk.ChunkData),
+				CreatedAt:   common.Now(),
+				UpdatedAt:   common.Now(),
+			}
+
+			// Сохраняем метаданные файла
+			if err := fileStorage.CreateFileMetadata(fileMetadata); err != nil {
+				return status.Error(codes.Internal, fmt.Sprintf("failed to create file metadata: %v", err))
+			}
 		}
 
-		fileData = append(fileData, chunk.ChunkData...)
+		// Сохраняем чанк
+		fileChunk := &storage.FileChunk{
+			FileID:        fileMetadata.ID,
+			ChunkIndex:    int(chunk.ChunkIndex),
+			ChunkData:     chunk.ChunkData,
+			ChunkChecksum: chunk.Checksum,
+			CreatedAt:     common.Now(),
+		}
+
+		if err := fileStorage.SaveFileChunk(fileChunk); err != nil {
+			return status.Error(codes.Internal, fmt.Sprintf("failed to save chunk %d: %v", chunk.ChunkIndex, err))
+		}
+
+		receivedChunks++
+		totalSize += int64(len(chunk.ChunkData))
+
+		log.Printf("UploadFile - received chunk %d/%d", chunk.ChunkIndex+1, chunk.TotalChunks)
 	}
 
-	secret := &common.SecretData{
-		ID:        uuid.MustParse(fileID),
-		UserID:    userID,
-		Type:      common.BinaryDataType,
-		Metadata:  fileName,
-		Data:      fileData,
-		Version:   1,
-		CreatedAt: common.Now(),
-		UpdatedAt: common.Now(),
-	}
-
-	if err := s.storage.SaveSecretData(secret); err != nil {
-		return status.Error(codes.Internal, fmt.Sprintf("failed to save file: %v", err))
-	}
+	log.Printf("UploadFile - completed: %s, size: %d bytes, chunks: %d",
+		fileMetadata.FileName, totalSize, receivedChunks)
 
 	return stream.SendAndClose(&api.UploadResponse{
-		FileId:   fileID,
-		FileSize: int64(len(fileData)),
+		FileId:   fileMetadata.ID.String(),
+		FileSize: totalSize,
 		Success:  true,
 	})
 }
 
-// DownloadFile потоковая выгрузка файла
+// DownloadFile потоковая выгрузка файла чанками
 func (s *GRPCServer) DownloadFile(req *api.DownloadRequest, stream api.GophKeeper_DownloadFileServer) error {
-	log.Println("DownloadFile")
+	log.Println("DownloadFile - starting chunked download")
 
-	// Используем правильный ключ контекста
 	userIDValue := stream.Context().Value(userIDKey)
 	if userIDValue == nil {
 		return status.Error(codes.Unauthenticated, "user not authenticated")
@@ -307,47 +333,53 @@ func (s *GRPCServer) DownloadFile(req *api.DownloadRequest, stream api.GophKeepe
 		return status.Error(codes.InvalidArgument, "invalid file ID")
 	}
 
-	secrets, err := s.storage.GetUserSecrets(userID)
+	// Проверяем, поддерживает ли хранилище работу с файлами
+	fileChecker, ok := s.storage.(storage.FileStorageChecker)
+	if !ok || !fileChecker.SupportsFiles() {
+		return status.Error(codes.Unimplemented, "file storage not supported")
+	}
+
+	fileStorage, ok := s.storage.(storage.FileStorage)
+	if !ok {
+		return status.Error(codes.Unimplemented, "file storage not supported")
+	}
+
+	// Получаем метаданные файла
+	fileMetadata, err := fileStorage.GetFileMetadata(fileID)
 	if err != nil {
 		return status.Error(codes.NotFound, "file not found")
 	}
 
-	var fileSecret *common.SecretData
-	for _, secret := range secrets {
-		if secret.ID == fileID && secret.Type == common.BinaryDataType {
-			fileSecret = secret
-			break
+	// Проверяем права доступа
+	if fileMetadata.UserID != userID {
+		return status.Error(codes.PermissionDenied, "access denied")
+	}
+
+	// Получаем все чанки файла
+	chunks, err := fileStorage.GetAllFileChunks(fileID)
+	if err != nil {
+		return status.Error(codes.Internal, fmt.Sprintf("failed to get file chunks: %v", err))
+	}
+
+	log.Printf("DownloadFile - sending %d chunks for file %s", len(chunks), fileMetadata.FileName)
+
+	// Отправляем чанки
+	for _, chunk := range chunks {
+		apiChunk := &api.FileChunk{
+			FileId:      fileMetadata.ID.String(),
+			FileName:    fileMetadata.FileName,
+			ChunkData:   chunk.ChunkData,
+			ChunkIndex:  int32(chunk.ChunkIndex),
+			TotalChunks: int32(fileMetadata.TotalChunks),
+			Checksum:    chunk.ChunkChecksum,
+		}
+
+		if err := stream.Send(apiChunk); err != nil {
+			return status.Error(codes.Internal, fmt.Sprintf("failed to send chunk %d: %v", chunk.ChunkIndex, err))
 		}
 	}
 
-	if fileSecret == nil {
-		return status.Error(codes.NotFound, "file not found")
-	}
-
-	chunkSize := 64 * 1024
-	data := fileSecret.Data
-	totalChunks := (len(data) + chunkSize - 1) / chunkSize
-
-	for i := 0; i < totalChunks; i++ {
-		start := i * chunkSize
-		end := start + chunkSize
-		if end > len(data) {
-			end = len(data)
-		}
-
-		chunk := &api.FileChunk{
-			FileId:      fileSecret.ID.String(),
-			FileName:    fileSecret.Metadata,
-			ChunkData:   data[start:end],
-			ChunkIndex:  int32(i),
-			TotalChunks: int32(totalChunks),
-		}
-
-		if err := stream.Send(chunk); err != nil {
-			return status.Error(codes.Internal, fmt.Sprintf("failed to send chunk: %v", err))
-		}
-	}
-
+	log.Printf("DownloadFile - completed: %s", fileMetadata.FileName)
 	return nil
 }
 

@@ -1,5 +1,3 @@
--- migrations/001_init.sql
-
 -- Таблица пользователей
 CREATE TABLE IF NOT EXISTS users (
                                      id UUID PRIMARY KEY,

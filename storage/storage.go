@@ -7,7 +7,7 @@ import (
 	"gophkeeper/internal/common"
 )
 
-// Storage интерфейс определяет методы для работы с хранилищем
+// Storage интерфейс определяет основные методы для работы с хранилищем
 type Storage interface {
 	// User methods
 	CreateUser(user *common.User) error
@@ -19,6 +19,29 @@ type Storage interface {
 	GetUserSecrets(userID uuid.UUID) ([]*common.SecretData, error)
 	GetSecretsSince(userID uuid.UUID, since time.Time) ([]*common.SecretData, error)
 	DeleteSecret(userID, secretID uuid.UUID) error
+}
+
+// FileStorage интерфейс определяет методы для работы с файлами (опционально)
+type FileStorage interface {
+	// File methods
+	CreateFileMetadata(metadata *FileMetadata) error
+	SaveFileChunk(chunk *FileChunk) error
+	GetFileMetadata(fileID uuid.UUID) (*FileMetadata, error)
+	GetFileChunk(fileID uuid.UUID, chunkIndex int) (*FileChunk, error)
+	GetAllFileChunks(fileID uuid.UUID) ([]*FileChunk, error)
+	GetUserFiles(userID uuid.UUID) ([]*FileMetadata, error)
+	DeleteFile(fileID uuid.UUID) error
+}
+
+// ExtendedStorage объединяет оба интерфейса
+type ExtendedStorage interface {
+	Storage
+	FileStorage
+}
+
+// FileStorageChecker интерфейс для проверки поддержки файлов
+type FileStorageChecker interface {
+	SupportsFiles() bool
 }
 
 // StorageError представляет ошибку хранилища
@@ -34,4 +57,5 @@ func (e *StorageError) Error() string {
 var (
 	ErrUserNotFound   = &StorageError{"user not found"}
 	ErrSecretNotFound = &StorageError{"secret not found"}
+	ErrFileNotFound   = &StorageError{"file not found"}
 )

@@ -1,3 +1,4 @@
+# docker-compose down
 # docker-compose up -d
 version: '3.8'
 

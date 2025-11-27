@@ -33,9 +33,11 @@ func main() {
 			log.Fatalf("Failed to create PostgreSQL storage: %v", err)
 		}
 		defer s.(*storage.PostgresStorage).Close()
+		log.Println("File storage support: ENABLED")
 	} else {
 		log.Println("Using in-memory storage")
 		s = storage.NewMemoryStorage()
+		log.Println("File storage support: DISABLED (use --use-postgres for file support)")
 	}
 
 	grpcServer := grpc.NewGRPCServer(s, *jwtSecret)

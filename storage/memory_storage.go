@@ -143,3 +143,45 @@ func (s *MemoryStorage) DeleteSecret(userID, secretID uuid.UUID) error {
 
 	return ErrSecretNotFound
 }
+
+// File methods - заглушки для MemoryStorage
+
+// SupportsFiles проверяет, поддерживает ли хранилище работу с файлами
+func (s *MemoryStorage) SupportsFiles() bool {
+	return false
+}
+
+// CreateFileMetadata создает метаданные файла (не реализовано для in-memory)
+func (s *MemoryStorage) CreateFileMetadata(metadata *FileMetadata) error {
+	return &StorageError{"file storage not supported in memory mode"}
+}
+
+// SaveFileChunk сохраняет чанк файла (не реализовано для in-memory)
+func (s *MemoryStorage) SaveFileChunk(chunk *FileChunk) error {
+	return &StorageError{"file storage not supported in memory mode"}
+}
+
+// GetFileMetadata возвращает метаданные файла (не реализовано для in-memory)
+func (s *MemoryStorage) GetFileMetadata(fileID uuid.UUID) (*FileMetadata, error) {
+	return nil, &StorageError{"file storage not supported in memory mode"}
+}
+
+// GetFileChunk возвращает конкретный чанк файла (не реализовано для in-memory)
+func (s *MemoryStorage) GetFileChunk(fileID uuid.UUID, chunkIndex int) (*FileChunk, error) {
+	return nil, &StorageError{"file storage not supported in memory mode"}
+}
+
+// GetAllFileChunks возвращает все чанки файла (не реализовано для in-memory)
+func (s *MemoryStorage) GetAllFileChunks(fileID uuid.UUID) ([]*FileChunk, error) {
+	return nil, &StorageError{"file storage not supported in memory mode"}
+}
+
+// GetUserFiles возвращает все файлы пользователя (не реализовано для in-memory)
+func (s *MemoryStorage) GetUserFiles(userID uuid.UUID) ([]*FileMetadata, error) {
+	return nil, &StorageError{"file storage not supported in memory mode"}
+}
+
+// DeleteFile удаляет файл и все его чанки (не реализовано для in-memory)
+func (s *MemoryStorage) DeleteFile(fileID uuid.UUID) error {
+	return &StorageError{"file storage not supported in memory mode"}
+}
