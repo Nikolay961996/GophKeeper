@@ -164,6 +164,11 @@ func (d *DataCommands) Get(id string) error {
 	return d.printSecret(secret)
 }
 
+// Delete удаляет данные
+func (d *DataCommands) Delete(id string) error {
+	return d.manager.DeleteData(id)
+}
+
 func (d *DataCommands) printSecret(secret *common.SecretData) error {
 	switch secret.Type {
 	case common.LoginPasswordType:

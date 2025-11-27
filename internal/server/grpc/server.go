@@ -183,13 +183,10 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 		return common.CreateErrorResponse(fmt.Errorf("invalid sync data")), nil
 	}
 
-	log.Println("1")
-
 	// Получаем изменения с сервера
 	serverSecretsPtr, err := s.storage.GetSecretsSince(userID, syncOp.LastSync)
 	if err != nil {
-		log.Fatalf(err.Error())
-		return common.CreateErrorResponse(fmt.Errorf("error getting secrets")), nil
+		return common.CreateErrorResponse(fmt.Errorf("error getting secrets - check token")), nil
 	}
 
 	// Конвертируем []*common.SecretData в []common.SecretData
@@ -197,7 +194,6 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 	for i, secretPtr := range serverSecretsPtr {
 		serverSecrets[i] = *secretPtr
 	}
-	log.Println("2")
 
 	// Сохраняем изменения от клиента и собираем конфликты
 	var conflicts []common.SecretData
@@ -212,10 +208,8 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 				continue
 			}
 
-			// Инкрементируем версию при сохранении
 			clientSecret.Version = existingSecret.Version + 1
 		} else {
-			// Новая запись
 			clientSecret.Version = 1
 		}
 
@@ -226,15 +220,11 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 		}
 	}
 
-	log.Println("3")
-
 	syncResult := common.SyncResult{
 		LastSync:  common.Now(),
 		Data:      serverSecrets,
 		Conflicts: conflicts,
 	}
-
-	log.Println("4")
 
 	return common.CreateSuccessResponse(syncResult)
 }

@@ -192,13 +192,20 @@ func (m *DataManager) GetBinaryData(id string) (string, []byte, error) {
 		return "", nil, fmt.Errorf("data not found")
 	}
 
+	fullFilePath := filepath.Join(filepath.Dir(m.dataFile), "bin", id)
+	d, err := os.ReadFile(fullFilePath)
+	if err != nil {
+		return "", nil, err
+	}
+	secret.Data = d
+
 	var result []byte
 	if err := m.crypto.DecryptData(secret, &result); err != nil {
 		return "", nil, err
 	}
 
 	var fileMetadata common.BinaryMetaData
-	err := json.Unmarshal([]byte(secret.Metadata), &fileMetadata)
+	err = json.Unmarshal([]byte(secret.Metadata), &fileMetadata)
 	if err != nil {
 		return "", nil, err
 	}
@@ -228,11 +235,21 @@ func (m *DataManager) DeleteData(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, exists := m.localData[id]; !exists {
+	secret, exists := m.localData[id]
+	if !exists {
 		return fmt.Errorf("data not found")
 	}
 
 	delete(m.localData, id)
+
+	if secret.Type == common.BinaryDataType {
+		fullFilePath := filepath.Join(filepath.Dir(m.dataFile), "bin", id)
+		if err := os.Remove(fullFilePath); err != nil {
+			log.Printf("file not found")
+		}
+	}
+
+	fmt.Printf("Success removed data\n")
 	return m.saveLocalData()
 }
 
@@ -287,6 +304,11 @@ func (m *DataManager) loadLocalData() error {
 
 // saveLocalData сохраняет локальные данные в файл
 func (m *DataManager) saveLocalData() error {
+	binDir := filepath.Join(filepath.Dir(m.dataFile), "bin")
+	if err := os.MkdirAll(binDir, 0700); err != nil {
+		return err
+	}
+
 	var secrets []*common.SecretData
 	for _, secret := range m.localData {
 		if uuid.Nil == secret.UserID {
@@ -295,6 +317,12 @@ func (m *DataManager) saveLocalData() error {
 				return err
 			}
 			secret.UserID = userID
+		}
+		if secret.Type == common.BinaryDataType && len(secret.Data) > 0 {
+			err := m.saveLocalBinData(secret, binDir)
+			if err != nil {
+				return err
+			}
 		}
 		secrets = append(secrets, secret)
 	}
@@ -311,6 +339,17 @@ func (m *DataManager) saveLocalData() error {
 
 	log.Printf("Success saved to local")
 	return os.WriteFile(m.dataFile, data, 0600)
+}
+
+func (m *DataManager) saveLocalBinData(secret *common.SecretData, binDir string) error {
+	err := os.WriteFile(filepath.Join(binDir, secret.ID.String()), secret.Data, 0644)
+	if err != nil {
+		fmt.Printf("Error writing file: %v\n", err)
+		return err
+	}
+	secret.Data = nil
+
+	return nil
 }
 
 // getDataFilePath возвращает путь к файлу данных

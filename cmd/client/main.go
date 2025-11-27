@@ -70,7 +70,9 @@ func main() {
 		addCardCmd(cfg, grpcClient),
 		addTextCmd(cfg, grpcClient),
 		addFileCmd(cfg, grpcClient),
-		userCmd(cfg))
+		userCmd(cfg),
+		delCmd(cfg, grpcClient),
+	)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Printf("Error: %v\n", err)
@@ -162,6 +164,29 @@ func showCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
 	}
 
 	return show
+}
+
+func delCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
+	var del = &cobra.Command{
+		Use:   "del [id]",
+		Short: "Delete data by id",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			m, err := getDataManager(false, cfg)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
+			if err := dataCommands.Delete(args[0]); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	return del
 }
 
 func loginCmd(authCommands *commands.AuthCommands) *cobra.Command {
