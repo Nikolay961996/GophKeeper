@@ -41,7 +41,7 @@ type SecretData struct {
 	Name      string    `json:"name"`
 	Data      []byte    `json:"data"` // Зашифрованные данные
 	Metadata  string    `json:"metadata"`
-	Version   int       `json:"version"` // ← ВАЖНО: для разрешения конфликтов
+	Version   int       `json:"version"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -70,6 +70,13 @@ type CardData struct {
 	CVV    string `json:"cvv"`
 	Holder string `json:"holder"`
 	Bank   string `json:"bank,omitempty"`
+}
+
+// BinaryMetaData метаданные бинарного файла
+type BinaryMetaData struct {
+	Size     int    `json:"size"`
+	Name     string `json:"name"`
+	FileName string `json:"file_name"`
 }
 
 // ParseUUID парсит строку в UUID

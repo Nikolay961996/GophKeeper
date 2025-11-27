@@ -103,8 +103,19 @@ func (m *DataManager) SaveTextData(name, text string) error {
 }
 
 // SaveBinaryData сохраняет бинарные данные
-func (m *DataManager) SaveBinaryData(name string, data []byte) error {
-	secret, err := m.crypto.EncryptData(common.BinaryDataType, data, name)
+func (m *DataManager) SaveBinaryData(name string, data []byte, fileName string) error {
+	metadata := common.BinaryMetaData{
+		Size:     len(data),
+		Name:     name,
+		FileName: fileName,
+	}
+
+	jsonData, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+
+	secret, err := m.crypto.EncryptData(common.BinaryDataType, data, string(jsonData))
 	if err != nil {
 		return err
 	}
@@ -172,21 +183,30 @@ func (m *DataManager) GetTextData(id string) (string, error) {
 }
 
 // GetBinaryData возвращает бинарные данные
-func (m *DataManager) GetBinaryData(id string) ([]byte, error) {
+func (m *DataManager) GetBinaryData(id string) (string, []byte, error) {
 	m.mu.RLock()
 	secret, exists := m.localData[id]
 	m.mu.RUnlock()
 
 	if !exists || m.cfg.UserID != secret.UserID.String() {
-		return nil, fmt.Errorf("data not found")
+		return "", nil, fmt.Errorf("data not found")
 	}
 
 	var result []byte
 	if err := m.crypto.DecryptData(secret, &result); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	return result, nil
+	var fileMetadata common.BinaryMetaData
+	err := json.Unmarshal([]byte(secret.Metadata), &fileMetadata)
+	if err != nil {
+		return "", nil, err
+	}
+	fmt.Printf("Name: %s\n", fileMetadata.Name)
+	fmt.Printf("Filename: %s\n", fileMetadata.FileName)
+	fmt.Printf("Size: %d\n", fileMetadata.Size)
+
+	return fileMetadata.FileName, result, nil
 }
 
 // ListData возвращает список всех данных

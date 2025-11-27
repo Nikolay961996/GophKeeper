@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"os"
+	"path/filepath"
 	"time"
 
 	"gophkeeper/internal/client/config"
@@ -37,8 +38,6 @@ func (d *DataCommands) Sync() error {
 		return fmt.Errorf("not authenticated. Please login first")
 	}
 
-	fmt.Println("1")
-	// Получаем локальные данные
 	localSecrets := d.manager.ListData()
 
 	// Находим время последней синхронизации
@@ -50,7 +49,6 @@ func (d *DataCommands) Sync() error {
 			}
 		}
 	}
-	fmt.Println("2")
 
 	// Конвертируем []*common.SecretData в []common.SecretData
 	localSecretsData := make([]common.SecretData, len(localSecrets))
@@ -58,21 +56,15 @@ func (d *DataCommands) Sync() error {
 		localSecretsData[i] = *secret
 	}
 
-	fmt.Println("2.1")
-
 	// Выполняем синхронизацию через gRPC
 	syncResult, err := d.grpcClient.Sync(lastSync, localSecretsData)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("3")
-
 	// Обнаруживаем конфликты
 	conflictManager := common.NewConflictManager()
 	detectedConflicts := conflictManager.DetectConflicts(localSecretsData, syncResult.Data, lastSync)
-
-	fmt.Println("4")
 
 	// Обрабатываем конфликты если есть
 	if len(detectedConflicts) > 0 {
@@ -84,8 +76,6 @@ func (d *DataCommands) Sync() error {
 
 		d.applyResolutions(resolutions)
 	}
-
-	fmt.Println("5")
 
 	// Сохраняем неконфликтные данные с сервера
 	nonConflictData := d.filterNonConflictData(syncResult.Data, detectedConflicts)
@@ -134,11 +124,12 @@ func (d *DataCommands) AddText(name, text string) error {
 // AddFile добавляет файл
 func (d *DataCommands) AddFile(name, filePath string) error {
 	data, err := os.ReadFile(filePath)
+	fileName := filepath.Base(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %v", err)
 	}
 
-	if err := d.manager.SaveBinaryData(name, data); err != nil {
+	if err := d.manager.SaveBinaryData(name, data, fileName); err != nil {
 		return err
 	}
 
@@ -197,11 +188,19 @@ func (d *DataCommands) printSecret(secret *common.SecretData) error {
 		fmt.Printf("Text: %s\n", data)
 
 	case common.BinaryDataType:
-		data, err := d.manager.GetBinaryData(secret.ID.String())
+		fileName, data, err := d.manager.GetBinaryData(secret.ID.String())
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Binary data: %d bytes\n", len(data))
+
+		fullFileName := fmt.Sprintf("%s-%s", secret.ID.String(), fileName)
+		err = os.WriteFile(fullFileName, data, 0644)
+		if err != nil {
+			fmt.Printf("Error writing file: %v\n", err)
+			return err
+		}
+
+		fmt.Printf("File %s succeccfully saved\n", fullFileName)
 	}
 
 	return nil
