@@ -126,6 +126,22 @@ func ValidateJWTToken(tokenString, secret string) (*JWTClaims, error) {
 	return nil, ErrInvalidToken
 }
 
+func GetJWTClaims(tokenString string) (jwt.MapClaims, error) {
+	token, _, err := jwt.NewParser().ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		fmt.Printf("Ошибка парсинга токена: %v\n", err)
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		fmt.Printf("Не удалось извлечь claims из токена: %v\n", err)
+		return nil, err
+	}
+
+	return claims, nil
+}
+
 // HashPassword создает хеш пароля
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

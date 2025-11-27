@@ -40,7 +40,7 @@ func (a *AuthCommands) Register(login, password string) error {
 
 // Login выполняет вход пользователя через gRPC
 func (a *AuthCommands) Login(login, password string) error {
-	authResult, err := a.grpcClient.Login(login, password) // ← ИСПОЛЬЗУЕМ gRPC
+	authResult, err := a.grpcClient.Login(login, password)
 	if err != nil {
 		return err
 	}

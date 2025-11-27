@@ -163,15 +163,6 @@ func (d *DataCommands) List() error {
 	return nil
 }
 
-func (d *DataCommands) GetByPosition(pos int64) error {
-	secret := d.manager.GetSecretByPosition(pos)
-	if secret == nil {
-		return fmt.Errorf("data with position %d not found", pos)
-	}
-
-	return d.printSecret(secret)
-}
-
 // Get выводит конкретные данные
 func (d *DataCommands) Get(id string) error {
 	secret := d.manager.GetSecretByID(id)

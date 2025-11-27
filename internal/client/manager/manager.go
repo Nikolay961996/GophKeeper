@@ -216,26 +216,6 @@ func (m *DataManager) DeleteData(id string) error {
 	return m.saveLocalData()
 }
 
-// GetSecretByPosition возвращает секрет по позиции
-func (m *DataManager) GetSecretByPosition(pos int64) *common.SecretData {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var i int64 = 1
-	for _, secret := range m.localData {
-		if secret.UserID.String() != m.cfg.UserID {
-			continue
-		}
-
-		if i == pos {
-			return secret
-		}
-		i++
-	}
-
-	return nil
-}
-
 // GetSecretByID возвращает секрет по ID
 func (m *DataManager) GetSecretByID(id string) *common.SecretData {
 	m.mu.RLock()

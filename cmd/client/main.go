@@ -1,8 +1,8 @@
 /*
 save binary
 file chanks
-postgre
 conflicts
+postgre
 linter
 tests
 */
@@ -11,9 +11,9 @@ package main
 
 import (
 	"fmt"
+	"gophkeeper/internal/common"
 	"log"
 	"os"
-	"strconv"
 
 	"gophkeeper/internal/client/commands"
 	"gophkeeper/internal/client/config"
@@ -28,6 +28,7 @@ var (
 	commit         = "none"
 	date           = "unknown"
 	masterPassword string
+	dataManager    *manager.DataManager
 )
 
 func main() {
@@ -52,10 +53,33 @@ func main() {
 		Short: "GophKeeper - secure password manager",
 		Long:  "GophKeeper is a secure client-server password manager",
 	}
-
 	rootCmd.PersistentFlags().StringVarP(&masterPassword, "password", "p", "", "Master password for encryption")
 
-	rootCmd.AddCommand(&cobra.Command{
+	authCommands := commands.NewAuthCommands(cfg, grpcClient)
+
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	rootCmd.AddCommand(
+		versionCmd(),
+		registerCmd(authCommands),
+		loginCmd(authCommands),
+		syncCmd(cfg, grpcClient),
+		addLoginCmd(cfg, grpcClient),
+		listCmd(cfg, grpcClient),
+		conflictsCmd(cfg, grpcClient),
+		showCmd(cfg, grpcClient),
+		addCardCmd(cfg, grpcClient),
+		addTextCmd(cfg, grpcClient),
+		addFileCmd(cfg, grpcClient),
+		userCmd(cfg))
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func versionCmd() *cobra.Command {
+	var version = &cobra.Command{
 		Use:   "version",
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -64,69 +88,43 @@ func main() {
 			fmt.Printf("Commit: %s\n", commit)
 			fmt.Printf("Build Date: %s\n", date)
 		},
-	})
-
-	authCommands := commands.NewAuthCommands(cfg, grpcClient)
-
-	var registerCmd = &cobra.Command{
-		Use:   "register [login] [password]",
-		Short: "Register a new user",
-		Args:  cobra.ExactArgs(2),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := authCommands.Register(args[0], args[1]); err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-		},
 	}
 
-	var loginCmd = &cobra.Command{
-		Use:   "login [login] [password]",
-		Short: "Login user",
-		Args:  cobra.ExactArgs(2),
+	return version
+}
+
+func userCmd(cfg *config.Config) *cobra.Command {
+	var version = &cobra.Command{
+		Use:   "user",
+		Short: "Print current user",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := authCommands.Login(args[0], args[1]); err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-		},
-	}
-
-	var dataManager *manager.DataManager
-
-	getDataManager := func(needMasterPassword bool) (*manager.DataManager, error) {
-		if dataManager != nil {
-			return dataManager, nil
-		}
-
-		if needMasterPassword && masterPassword == "" {
-			fmt.Print("Enter master password: ")
-			var input string
-			_, err := fmt.Scanln(&input)
+			claims, err := common.GetJWTClaims(cfg.Token)
 			if err != nil {
-				return nil, err
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
 			}
-			masterPassword = input
-
-			if masterPassword == "" {
-				return nil, fmt.Errorf("master password is required")
+			if login, exists := claims["login"]; exists {
+				fmt.Printf("login: %s\n", login)
+			} else {
+				fmt.Println("Поле 'login' не найдено в токене")
 			}
-		}
-
-		if cfg.Token == "" {
-			return nil, fmt.Errorf("not authenticated. Please login first")
-		}
-
-		var err error
-		dataManager, err = manager.NewDataManager(cfg, masterPassword)
-		return dataManager, err
+			if userId, exists := claims["user_id"]; exists {
+				fmt.Printf("user_id: %s\n", userId)
+			} else {
+				fmt.Println("Поле 'user_id' не найдено в токене")
+			}
+		},
 	}
 
-	var syncCmd = &cobra.Command{
+	return version
+}
+
+func syncCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
+	var sync = &cobra.Command{
 		Use:   "sync",
 		Short: "Synchronize data with server",
 		Run: func(cmd *cobra.Command, args []string) {
-			m, err := getDataManager(false)
+			m, err := getDataManager(false, cfg)
 			if err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)
@@ -140,89 +138,16 @@ func main() {
 		},
 	}
 
-	var addLoginCmd = &cobra.Command{
-		Use:   "add-login [name] [login] [password]",
-		Short: "Add login/password",
-		Args:  cobra.ExactArgs(3),
-		Run: func(cmd *cobra.Command, args []string) {
-			m, err := getDataManager(true)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
+	return sync
+}
 
-			site, _ := cmd.Flags().GetString("site")
-			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
-			if err := dataCommands.AddLoginPassword(args[0], args[1], args[2], site); err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-		},
-	}
-	addLoginCmd.Flags().String("site", "", "Website URL")
-
-	var addCardCmd = &cobra.Command{
-		Use:   "add-card [name] [number] [expiry] [cvv] [holder] [bank]",
-		Short: "Add card data",
-		Args:  cobra.ExactArgs(6),
-		Run: func(cmd *cobra.Command, args []string) {
-			m, err := getDataManager(true)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-
-			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
-			if err := dataCommands.AddCard(args[0], args[1], args[2], args[3], args[4], args[5]); err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-		},
-	}
-
-	var addTextCmd = &cobra.Command{
-		Use:   "add-text [name] [text]",
-		Short: "Add text data",
-		Args:  cobra.ExactArgs(2),
-		Run: func(cmd *cobra.Command, args []string) {
-			m, err := getDataManager(true)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-
-			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
-			if err := dataCommands.AddText(args[0], args[1]); err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-		},
-	}
-
-	var listCmd = &cobra.Command{
-		Use:   "list",
-		Short: "List all stored data",
-		Run: func(cmd *cobra.Command, args []string) {
-			m, err := getDataManager(false)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-
-			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
-			if err := dataCommands.List(); err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-		},
-	}
-
-	var showCmd = &cobra.Command{
-		Use:   "show-i [id]",
+func showCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
+	var show = &cobra.Command{
+		Use:   "show [id]",
 		Short: "Show data by id",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			m, err := getDataManager(true)
+			m, err := getDataManager(true, cfg)
 			if err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)
@@ -236,35 +161,191 @@ func main() {
 		},
 	}
 
-	var showByNameCmd = &cobra.Command{
-		Use:   "show-p [position]",
-		Short: "Show data by position in list",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			m, err := getDataManager(true)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
+	return show
+}
 
-			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
-			p, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-			if err := dataCommands.GetByPosition(p); err != nil {
+func loginCmd(authCommands *commands.AuthCommands) *cobra.Command {
+	var login = &cobra.Command{
+		Use:   "login [login] [password]",
+		Short: "Login user",
+		Args:  cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := authCommands.Login(args[0], args[1]); err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)
 			}
 		},
 	}
 
-	var conflictsCmd = &cobra.Command{
+	return login
+}
+
+func registerCmd(authCommands *commands.AuthCommands) *cobra.Command {
+	var register = &cobra.Command{
+		Use:   "register [login] [password]",
+		Short: "Register a new user",
+		Args:  cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := authCommands.Register(args[0], args[1]); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	return register
+}
+
+func listCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
+	var list = &cobra.Command{
+		Use:   "list",
+		Short: "List all stored data",
+		Run: func(cmd *cobra.Command, args []string) {
+			m, err := getDataManager(false, cfg)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
+			if err := dataCommands.List(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	return list
+}
+
+func addLoginCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
+	var addLogin = &cobra.Command{
+		Use:   "add-login [name] [login] [password]",
+		Short: "Add login/password",
+		Args:  cobra.ExactArgs(3),
+		Run: func(cmd *cobra.Command, args []string) {
+			m, err := getDataManager(true, cfg)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			site, _ := cmd.Flags().GetString("site")
+			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
+			if err := dataCommands.AddLoginPassword(args[0], args[1], args[2], site); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+	addLogin.Flags().String("site", "", "Website URL")
+
+	return addLogin
+}
+
+func addCardCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
+	var addCard = &cobra.Command{
+		Use:   "add-card [name] [number] [expiry] [cvv] [holder] [bank]",
+		Short: "Add card data",
+		Args:  cobra.ExactArgs(6),
+		Run: func(cmd *cobra.Command, args []string) {
+			m, err := getDataManager(true, cfg)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
+			if err := dataCommands.AddCard(args[0], args[1], args[2], args[3], args[4], args[5]); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	return addCard
+}
+
+func addTextCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
+	var addText = &cobra.Command{
+		Use:   "add-text [name] [text]",
+		Short: "Add text data",
+		Args:  cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			m, err := getDataManager(true, cfg)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
+			if err := dataCommands.AddText(args[0], args[1]); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	return addText
+}
+
+func addFileCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
+	var addFile = &cobra.Command{
+		Use:   "add-file [name] [path]",
+		Short: "Add file data",
+		Args:  cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			m, err := getDataManager(true, cfg)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
+			if err := dataCommands.AddFile(args[0], args[1]); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	return addFile
+}
+
+func getDataManager(needMasterPassword bool, cfg *config.Config) (*manager.DataManager, error) {
+	if dataManager != nil {
+		return dataManager, nil
+	}
+
+	if needMasterPassword && masterPassword == "" {
+		fmt.Print("Enter master password: ")
+		var input string
+		_, err := fmt.Scanln(&input)
+		if err != nil {
+			return nil, err
+		}
+		masterPassword = input
+
+		if masterPassword == "" {
+			return nil, fmt.Errorf("master password is required")
+		}
+	}
+
+	if cfg.Token == "" {
+		return nil, fmt.Errorf("not authenticated. Please login first")
+	}
+
+	var err error
+	dataManager, err = manager.NewDataManager(cfg, masterPassword)
+	return dataManager, err
+}
+
+func conflictsCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
+	var conflicts = &cobra.Command{
 		Use:   "conflicts",
 		Short: "Show and resolve pending conflicts",
 		Run: func(cmd *cobra.Command, args []string) {
-			m, err := getDataManager(true)
+			m, err := getDataManager(true, cfg)
 			if err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)
@@ -279,11 +360,5 @@ func main() {
 		},
 	}
 
-	rootCmd.CompletionOptions.DisableDefaultCmd = true
-	rootCmd.AddCommand(registerCmd, loginCmd, syncCmd, addLoginCmd, listCmd, conflictsCmd, showCmd, showByNameCmd, addCardCmd, addTextCmd)
-
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
-	}
+	return conflicts
 }
