@@ -1,3 +1,12 @@
+/*
+save binary
+file chanks
+postgre
+conflicts
+linter
+tests
+*/
+
 package main
 
 import (
@@ -8,7 +17,7 @@ import (
 
 	"gophkeeper/internal/client/commands"
 	"gophkeeper/internal/client/config"
-	"gophkeeper/internal/client/grpc" // ← ДОБАВИЛИ
+	"gophkeeper/internal/client/grpc"
 	"gophkeeper/internal/client/manager"
 
 	"github.com/spf13/cobra"
@@ -123,7 +132,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			dataCommands := commands.NewDataCommands(cfg, m, grpcClient) // ← ПЕРЕДАЕМ gRPC клиент
+			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
 			if err := dataCommands.Sync(); err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)
@@ -165,6 +174,25 @@ func main() {
 
 			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
 			if err := dataCommands.AddCard(args[0], args[1], args[2], args[3], args[4], args[5]); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	var addTextCmd = &cobra.Command{
+		Use:   "add-text [name] [text]",
+		Short: "Add text data",
+		Args:  cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			m, err := getDataManager(true)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				os.Exit(1)
+			}
+
+			dataCommands := commands.NewDataCommands(cfg, m, grpcClient)
+			if err := dataCommands.AddText(args[0], args[1]); err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)
 			}
@@ -252,7 +280,7 @@ func main() {
 	}
 
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
-	rootCmd.AddCommand(registerCmd, loginCmd, syncCmd, addLoginCmd, listCmd, conflictsCmd, showCmd, showByNameCmd, addCardCmd)
+	rootCmd.AddCommand(registerCmd, loginCmd, syncCmd, addLoginCmd, listCmd, conflictsCmd, showCmd, showByNameCmd, addCardCmd, addTextCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Printf("Error: %v\n", err)

@@ -223,6 +223,10 @@ func (m *DataManager) GetSecretByPosition(pos int64) *common.SecretData {
 
 	var i int64 = 1
 	for _, secret := range m.localData {
+		if secret.UserID.String() != m.cfg.UserID {
+			continue
+		}
+
 		if i == pos {
 			return secret
 		}
