@@ -3,26 +3,26 @@ package commands
 import (
 	"fmt"
 	"gophkeeper/internal/client/config"
-	"gophkeeper/internal/client/grpc" // ← ДОБАВИЛИ
+	"gophkeeper/internal/client/grpc"
 )
 
 // AuthCommands обработчики команд аутентификации
 type AuthCommands struct {
 	cfg        *config.Config
-	grpcClient *grpc.GRPCClient // ← ДОБАВИЛИ
+	grpcClient *grpc.GRPCClient
 }
 
 // NewAuthCommands создает новый AuthCommands
 func NewAuthCommands(cfg *config.Config, grpcClient *grpc.GRPCClient) *AuthCommands {
 	return &AuthCommands{
 		cfg:        cfg,
-		grpcClient: grpcClient, // ← ДОБАВИЛИ
+		grpcClient: grpcClient,
 	}
 }
 
 // Register регистрирует нового пользователя через gRPC
 func (a *AuthCommands) Register(login, password string) error {
-	authResult, err := a.grpcClient.Register(login, password) // ← ИСПОЛЬЗУЕМ gRPC
+	authResult, err := a.grpcClient.Register(login, password)
 	if err != nil {
 		return err
 	}

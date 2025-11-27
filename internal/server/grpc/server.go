@@ -65,13 +65,12 @@ func (s *GRPCServer) Stop() {
 
 // Execute - универсальный Opaque API метод
 func (s *GRPCServer) Execute(ctx context.Context, req *api.CommandRequest) (*api.CommandResponse, error) {
-	// Декодируем операцию
+	log.Println("Execute")
 	var opReq common.OperationRequest
 	if err := common.UnmarshalOperation(req.Payload, &opReq); err != nil {
 		return s.createErrorResponse(codes.InvalidArgument, "invalid operation format")
 	}
 
-	// Обрабатываем операцию
 	var result *common.OperationResponse
 	var err error
 
@@ -103,24 +102,23 @@ func (s *GRPCServer) Execute(ctx context.Context, req *api.CommandRequest) (*api
 
 // handleRegister обработчик регистрации
 func (s *GRPCServer) handleRegister(payload []byte) (*common.OperationResponse, error) {
+	log.Println("handleRegister")
+
 	var registerOp common.RegisterOp
 	if err := common.UnmarshalOperation(payload, &registerOp); err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("invalid register data")), nil
 	}
 
-	// Проверяем, что пользователь не существует
 	existingUser, _ := s.storage.GetUserByLogin(registerOp.Login)
 	if existingUser != nil {
 		return common.CreateErrorResponse(fmt.Errorf("user already exists")), nil
 	}
 
-	// Хешируем пароль
 	passwordHash, err := common.HashPassword(registerOp.Password)
 	if err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("error creating user")), nil
 	}
 
-	// Создаем пользователя
 	user := &common.User{
 		ID:           uuid.New(),
 		Login:        registerOp.Login,
@@ -132,7 +130,6 @@ func (s *GRPCServer) handleRegister(payload []byte) (*common.OperationResponse, 
 		return common.CreateErrorResponse(fmt.Errorf("error creating user")), nil
 	}
 
-	// Генерируем токен
 	token, err := common.GenerateJWTToken(user.ID, user.Login, s.jwtSecret, common.TokenExpiration)
 	if err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("error generating token")), nil
@@ -148,23 +145,22 @@ func (s *GRPCServer) handleRegister(payload []byte) (*common.OperationResponse, 
 
 // handleLogin обработчик входа
 func (s *GRPCServer) handleLogin(payload []byte) (*common.OperationResponse, error) {
+	log.Println("handleLogin")
+
 	var loginOp common.LoginOp
 	if err := common.UnmarshalOperation(payload, &loginOp); err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("invalid login data")), nil
 	}
 
-	// Ищем пользователя
 	user, err := s.storage.GetUserByLogin(loginOp.Login)
 	if err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("invalid credentials")), nil
 	}
 
-	// Проверяем пароль
 	if !common.CheckPasswordHash(loginOp.Password, user.PasswordHash) {
 		return common.CreateErrorResponse(fmt.Errorf("invalid credentials")), nil
 	}
 
-	// Генерируем токен
 	token, err := common.GenerateJWTToken(user.ID, user.Login, s.jwtSecret, common.TokenExpiration)
 	if err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("error generating token")), nil
@@ -180,14 +176,19 @@ func (s *GRPCServer) handleLogin(payload []byte) (*common.OperationResponse, err
 
 // handleSync обработчик синхронизации
 func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.OperationResponse, error) {
+	log.Println("handleSync")
+
 	var syncOp common.SyncOp
 	if err := common.UnmarshalOperation(payload, &syncOp); err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("invalid sync data")), nil
 	}
 
+	log.Println("1")
+
 	// Получаем изменения с сервера
 	serverSecretsPtr, err := s.storage.GetSecretsSince(userID, syncOp.LastSync)
 	if err != nil {
+		log.Fatalf(err.Error())
 		return common.CreateErrorResponse(fmt.Errorf("error getting secrets")), nil
 	}
 
@@ -196,6 +197,7 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 	for i, secretPtr := range serverSecretsPtr {
 		serverSecrets[i] = *secretPtr
 	}
+	log.Println("2")
 
 	// Сохраняем изменения от клиента и собираем конфликты
 	var conflicts []common.SecretData
@@ -224,17 +226,23 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 		}
 	}
 
+	log.Println("3")
+
 	syncResult := common.SyncResult{
 		LastSync:  common.Now(),
 		Data:      serverSecrets,
 		Conflicts: conflicts,
 	}
 
+	log.Println("4")
+
 	return common.CreateSuccessResponse(syncResult)
 }
 
 // UploadFile потоковая загрузка файла
 func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
+	log.Println("UploadFile")
+
 	// Используем правильный ключ контекста
 	userIDValue := stream.Context().Value(userIDKey)
 	if userIDValue == nil {
@@ -291,6 +299,8 @@ func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
 
 // DownloadFile потоковая выгрузка файла
 func (s *GRPCServer) DownloadFile(req *api.DownloadRequest, stream api.GophKeeper_DownloadFileServer) error {
+	log.Println("DownloadFile")
+
 	// Используем правильный ключ контекста
 	userIDValue := stream.Context().Value(userIDKey)
 	if userIDValue == nil {
@@ -353,8 +363,9 @@ func (s *GRPCServer) DownloadFile(req *api.DownloadRequest, stream api.GophKeepe
 
 // unaryAuthInterceptor перехватчик для униарных методов
 func (s *GRPCServer) unaryAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	log.Println("unaryAuthInterceptor")
+
 	if info.FullMethod == "/gophkeeper.GophKeeper/Execute" {
-		// Для Execute проверяем аутентификацию внутри обработчика
 		return handler(ctx, req)
 	}
 
@@ -363,19 +374,19 @@ func (s *GRPCServer) unaryAuthInterceptor(ctx context.Context, req interface{}, 
 		return nil, err
 	}
 
-	// Используем правильный ключ
 	ctx = context.WithValue(ctx, userIDKey, userID)
 	return handler(ctx, req)
 }
 
 // streamAuthInterceptor перехватчик для потоковых методов
 func (s *GRPCServer) streamAuthInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	log.Println("streamAuthInterceptor")
+
 	userID, err := s.authenticate(ss.Context())
 	if err != nil {
 		return err
 	}
 
-	// Используем правильный ключ
 	ctx := context.WithValue(ss.Context(), userIDKey, userID)
 	return handler(srv, &wrappedStream{ss, ctx})
 }

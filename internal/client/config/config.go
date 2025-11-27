@@ -21,7 +21,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	config := &Config{
-		ServerURL: "localhost:8081", // ← ИЗМЕНИЛИ на gRPC порт
+		ServerURL: "localhost:8081",
 	}
 
 	data, err := os.ReadFile(configPath)
@@ -51,7 +51,6 @@ func SaveConfig(config *Config) error {
 		return err
 	}
 
-	// Создаем директорию, если она не существует
 	dir := filepath.Dir(configPath)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err

@@ -16,10 +16,8 @@ var (
 func main() {
 	flag.Parse()
 
-	// Единое хранилище для всего сервера
 	storage := storage.NewMemoryStorage()
 
-	// Запускаем только gRPC сервер (HTTP больше не нужен)
 	grpcServer := grpc.NewGRPCServer(storage, *jwtSecret)
 	log.Printf("Starting gRPC server on %s", *grpcAddr)
 

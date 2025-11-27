@@ -37,6 +37,7 @@ func (d *DataCommands) Sync() error {
 		return fmt.Errorf("not authenticated. Please login first")
 	}
 
+	fmt.Println("1")
 	// Получаем локальные данные
 	localSecrets := d.manager.ListData()
 
@@ -49,6 +50,7 @@ func (d *DataCommands) Sync() error {
 			}
 		}
 	}
+	fmt.Println("2")
 
 	// Конвертируем []*common.SecretData в []common.SecretData
 	localSecretsData := make([]common.SecretData, len(localSecrets))
@@ -56,15 +58,21 @@ func (d *DataCommands) Sync() error {
 		localSecretsData[i] = *secret
 	}
 
+	fmt.Println("2.1")
+
 	// Выполняем синхронизацию через gRPC
 	syncResult, err := d.grpcClient.Sync(lastSync, localSecretsData)
 	if err != nil {
 		return err
 	}
 
+	fmt.Println("3")
+
 	// Обнаруживаем конфликты
 	conflictManager := common.NewConflictManager()
 	detectedConflicts := conflictManager.DetectConflicts(localSecretsData, syncResult.Data, lastSync)
+
+	fmt.Println("4")
 
 	// Обрабатываем конфликты если есть
 	if len(detectedConflicts) > 0 {
@@ -74,9 +82,10 @@ func (d *DataCommands) Sync() error {
 			return fmt.Errorf("error resolving conflicts: %v", err)
 		}
 
-		// Применяем разрешения
 		d.applyResolutions(resolutions)
 	}
+
+	fmt.Println("5")
 
 	// Сохраняем неконфликтные данные с сервера
 	nonConflictData := d.filterNonConflictData(syncResult.Data, detectedConflicts)
@@ -86,8 +95,8 @@ func (d *DataCommands) Sync() error {
 		}
 	}
 
-	fmt.Printf("✅ Sync completed. Received %d items, resolved %d conflicts\n",
-		len(syncResult.Data), len(detectedConflicts))
+	fmt.Printf("✅ Sync completed. Received %d items, resolved %d conflicts, send %d items\n",
+		len(syncResult.Data), len(detectedConflicts), len(localSecretsData))
 
 	return nil
 }
@@ -99,7 +108,7 @@ func (d *DataCommands) AddLoginPassword(name, login, password, site string) erro
 	}
 
 	fmt.Printf("Login/password '%s' saved successfully\n", name)
-	return d.Sync() // Синхронизируем после добавления
+	return d.Sync()
 }
 
 // AddCard добавляет данные карты
@@ -148,10 +157,19 @@ func (d *DataCommands) List() error {
 
 	fmt.Printf("Stored data (%d items):\n", len(secrets))
 	for i, secret := range secrets {
-		fmt.Printf("%d. %s [%s] - %s\n", i+1, secret.Metadata, secret.Type, secret.UpdatedAt.Format("2006-01-02 15:04"))
+		fmt.Printf("%d. %s [%s] (%s) - %s\n", i+1, secret.Metadata, secret.Type, secret.ID, secret.UpdatedAt.Format("2006-01-02 15:04"))
 	}
 
 	return nil
+}
+
+func (d *DataCommands) GetByPosition(pos int64) error {
+	secret := d.manager.GetSecretByPosition(pos)
+	if secret == nil {
+		return fmt.Errorf("data with position %d not found", pos)
+	}
+
+	return d.printSecret(secret)
 }
 
 // Get выводит конкретные данные
@@ -161,30 +179,34 @@ func (d *DataCommands) Get(id string) error {
 		return fmt.Errorf("data with ID %s not found", id)
 	}
 
+	return d.printSecret(secret)
+}
+
+func (d *DataCommands) printSecret(secret *common.SecretData) error {
 	switch secret.Type {
 	case common.LoginPasswordType:
-		data, err := d.manager.GetLoginPassword(id)
+		data, err := d.manager.GetLoginPassword(secret.ID.String())
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Login: %s\nPassword: %s\nSite: %s\n", data.Login, data.Password, data.Site)
 
 	case common.CardDataType:
-		data, err := d.manager.GetCardData(id)
+		data, err := d.manager.GetCardData(secret.ID.String())
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Number: %s\nExpiry: %s\nHolder: %s\nBank: %s\n", data.Number, data.Expiry, data.Holder, data.Bank)
 
 	case common.TextDataType:
-		data, err := d.manager.GetTextData(id)
+		data, err := d.manager.GetTextData(secret.ID.String())
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Text: %s\n", data)
 
 	case common.BinaryDataType:
-		data, err := d.manager.GetBinaryData(id)
+		data, err := d.manager.GetBinaryData(secret.ID.String())
 		if err != nil {
 			return err
 		}

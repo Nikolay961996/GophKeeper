@@ -3,6 +3,7 @@ package manager
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -60,6 +61,7 @@ func (m *DataManager) SaveLoginPassword(name, login, password, site string) erro
 	defer m.mu.Unlock()
 
 	m.localData[secret.ID.String()] = secret
+
 	return m.saveLocalData()
 }
 
@@ -73,7 +75,6 @@ func (m *DataManager) SaveCardData(name, number, expiry, cvv, holder, bank strin
 		Bank:   bank,
 	}
 
-	// ИСПРАВЛЕНО: common.CardData вместо common.Card
 	secret, err := m.crypto.EncryptData(common.CardDataType, data, name)
 	if err != nil {
 		return err
@@ -120,7 +121,8 @@ func (m *DataManager) GetLoginPassword(id string) (*common.LoginPasswordData, er
 	secret, exists := m.localData[id]
 	m.mu.RUnlock()
 
-	if !exists {
+	// m.cfg.UserID
+	if !exists || m.cfg.UserID != secret.UserID.String() {
 		return nil, fmt.Errorf("data not found")
 	}
 
@@ -138,7 +140,7 @@ func (m *DataManager) GetCardData(id string) (*common.CardData, error) {
 	secret, exists := m.localData[id]
 	m.mu.RUnlock()
 
-	if !exists {
+	if !exists || m.cfg.UserID != secret.UserID.String() {
 		return nil, fmt.Errorf("data not found")
 	}
 
@@ -156,7 +158,7 @@ func (m *DataManager) GetTextData(id string) (string, error) {
 	secret, exists := m.localData[id]
 	m.mu.RUnlock()
 
-	if !exists {
+	if !exists || m.cfg.UserID != secret.UserID.String() {
 		return "", fmt.Errorf("data not found")
 	}
 
@@ -174,7 +176,7 @@ func (m *DataManager) GetBinaryData(id string) ([]byte, error) {
 	secret, exists := m.localData[id]
 	m.mu.RUnlock()
 
-	if !exists {
+	if !exists || m.cfg.UserID != secret.UserID.String() {
 		return nil, fmt.Errorf("data not found")
 	}
 
@@ -193,7 +195,9 @@ func (m *DataManager) ListData() []*common.SecretData {
 
 	var result []*common.SecretData
 	for _, secret := range m.localData {
-		result = append(result, secret)
+		if secret.UserID.String() == m.cfg.UserID {
+			result = append(result, secret)
+		}
 	}
 	return result
 }
@@ -209,6 +213,22 @@ func (m *DataManager) DeleteData(id string) error {
 
 	delete(m.localData, id)
 	return m.saveLocalData()
+}
+
+// GetSecretByPosition возвращает секрет по позиции
+func (m *DataManager) GetSecretByPosition(pos int64) *common.SecretData {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var i int64 = 1
+	for _, secret := range m.localData {
+		if i == pos {
+			return secret
+		}
+		i++
+	}
+
+	return nil
 }
 
 // GetSecretByID возвращает секрет по ID
@@ -262,9 +282,6 @@ func (m *DataManager) loadLocalData() error {
 
 // saveLocalData сохраняет локальные данные в файл
 func (m *DataManager) saveLocalData() error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	var secrets []*common.SecretData
 	for _, secret := range m.localData {
 		secrets = append(secrets, secret)
@@ -275,12 +292,12 @@ func (m *DataManager) saveLocalData() error {
 		return err
 	}
 
-	// Создаем директорию если не существует
 	dir := filepath.Dir(m.dataFile)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 
+	log.Printf("Success saved to local")
 	return os.WriteFile(m.dataFile, data, 0600)
 }
 
