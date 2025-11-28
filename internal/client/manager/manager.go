@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"gophkeeper/internal/client/config"
 	"gophkeeper/internal/client/crypto"
@@ -102,8 +103,22 @@ func (m *DataManager) SaveTextData(name, text string) error {
 	return m.saveLocalData()
 }
 
-// SaveBinaryData сохраняет бинарные данные
+// SaveBinaryData сохраняет бинарные данные с проверкой дубликатов
 func (m *DataManager) SaveBinaryData(name string, data []byte, fileName string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, secret := range m.localData {
+		if secret.Type == common.BinaryDataType {
+			var existingMetadata common.BinaryMetaData
+			if err := json.Unmarshal([]byte(secret.Metadata), &existingMetadata); err == nil {
+				if existingMetadata.Name == name {
+					return m.updateExistingBinaryData(secret, data, fileName)
+				}
+			}
+		}
+	}
+
 	metadata := common.BinaryMetaData{
 		Size:     len(data),
 		Name:     name,
@@ -119,9 +134,6 @@ func (m *DataManager) SaveBinaryData(name string, data []byte, fileName string) 
 	if err != nil {
 		return err
 	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	m.localData[secret.ID.String()] = secret
 	return m.saveLocalData()
@@ -274,6 +286,38 @@ func (m *DataManager) SaveSecret(secret *common.SecretData) error {
 	}
 
 	m.localData[secret.ID.String()] = secret
+	return m.saveLocalData()
+}
+
+// updateExistingBinaryData обновляет существующие бинарные данные
+func (m *DataManager) updateExistingBinaryData(secret *common.SecretData, data []byte, fileName string) error {
+	var metadata common.BinaryMetaData
+	if err := json.Unmarshal([]byte(secret.Metadata), &metadata); err != nil {
+		return err
+	}
+
+	metadata.Size = len(data)
+	metadata.FileName = fileName
+
+	updatedMetadata, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+
+	secret.Metadata = string(updatedMetadata)
+	secret.UpdatedAt = time.Now()
+	secret.Version++
+
+	binDir := filepath.Join(filepath.Dir(m.dataFile), "bin")
+	if err := os.MkdirAll(binDir, 0700); err != nil {
+		return err
+	}
+
+	filePath := filepath.Join(binDir, secret.ID.String())
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return err
+	}
+
 	return m.saveLocalData()
 }
 

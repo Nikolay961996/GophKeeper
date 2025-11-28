@@ -172,6 +172,10 @@ func (c *GRPCClient) Sync(lastSync time.Time, data []common.SecretData) (*common
 
 // UploadFile загружает файл на сервер (без изменений)
 func (c *GRPCClient) UploadFile(filePath, fileID string) error {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("file not found: %s", filePath)
+	}
+
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %v", err)

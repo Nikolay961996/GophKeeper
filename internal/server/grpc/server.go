@@ -184,8 +184,8 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 		return common.CreateErrorResponse(fmt.Errorf("invalid sync data")), nil
 	}
 
-	// Получаем изменения с сервера
-	serverSecretsPtr, err := s.storage.GetSecretsSince(userID, syncOp.LastSync)
+	// Получаем ВСЕ секреты пользователя, а не только измененные
+	serverSecretsPtr, err := s.storage.GetUserSecrets(userID)
 	if err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("error getting secrets")), nil
 	}

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gophkeeper/internal/client/config"
@@ -206,43 +207,74 @@ func (d *DataCommands) Delete(id string) error {
 	return d.manager.DeleteData(id)
 }
 
-func (d *DataCommands) SyncFiles(local []common.SecretData, origin []common.SecretData) error {
-	var localBins = map[uuid.UUID]bool{}
-	for _, ld := range local {
-		if ld.Type == common.BinaryDataType {
-			localBins[ld.ID] = true
+// SyncFiles синхронизирует файлы между клиентом и сервером
+func (d *DataCommands) SyncFiles(local []common.SecretData, server []common.SecretData) error {
+	localBins := make(map[uuid.UUID]*common.SecretData)
+	serverBins := make(map[uuid.UUID]*common.SecretData)
+
+	for i := range local {
+		fmt.Printf("Local: %s - %s\n", local[i].ID, local[i].Type)
+		if local[i].Type == common.BinaryDataType {
+			localBins[local[i].ID] = &local[i]
 		}
 	}
 
-	var originBins = map[uuid.UUID]bool{}
-	for _, ld := range origin {
-		if ld.Type == common.BinaryDataType {
-			originBins[ld.ID] = true
+	for i := range server {
+		fmt.Printf("Server: %s - %s\n", server[i].ID, server[i].Type)
+		if server[i].Type == common.BinaryDataType {
+			serverBins[server[i].ID] = &server[i]
 		}
 	}
 
-	for _, sd := range origin {
-		if sd.Type == common.BinaryDataType {
-			if _, ok := localBins[sd.ID]; !ok {
-				err := d.grpcClient.DownloadFile(sd.ID.String(), filepath.Join(d.binDir, sd.ID.String()))
-				if err != nil {
-					log.Printf("Warning: failed to download file %s: %v\n", sd.ID.String(), err)
-				}
+	fmt.Printf("File sync: %d local files, %d server files\n", len(localBins), len(serverBins))
+
+	if len(serverBins) == 0 && len(localBins) > 0 {
+		fmt.Printf("WARNING: Server returned 0 files but claims files exist. Metadata sync issue?\n")
+	}
+
+	// Скачиваем отсутствующие файлы с сервера
+	downloadCount := 0
+	for id, _ := range serverBins {
+		localFileExists := d.checkLocalFileExists(id)
+
+		if !localFileExists {
+			fmt.Printf("Downloading file %s from server...\n", id)
+			err := d.grpcClient.DownloadFile(id.String(), filepath.Join(d.binDir, id.String()))
+			if err != nil {
+				log.Printf("Failed to download file %s: %v\n", id, err)
+			} else {
+				downloadCount++
 			}
 		}
 	}
 
-	for _, sd := range local {
-		if sd.Type == common.BinaryDataType {
-			if _, ok := originBins[sd.ID]; !ok || sd.Type == common.TextDataType {
-				err := d.grpcClient.UploadFile(filepath.Join(d.binDir, sd.ID.String()), sd.ID.String())
-				if err != nil {
-					log.Printf("Warning: failed to upload file %s: %v\n", sd.ID.String(), err)
+	// Загружаем на сервер ТОЛЬКО если файла действительно нет на сервере
+	uploadCount := 0
+	for id, _ := range localBins {
+		_, existsOnServer := serverBins[id]
+		localFileExists := d.checkLocalFileExists(id)
+
+		if !existsOnServer && localFileExists {
+			fmt.Printf("Attempting to upload new file %s to server...\n", id)
+			err := d.grpcClient.UploadFile(filepath.Join(d.binDir, id.String()), id.String())
+			if err != nil {
+				if strings.Contains(err.Error(), "duplicate key") {
+					fmt.Printf("File %s already exists on server (duplicate key)\n", id)
+				} else if strings.Contains(err.Error(), "EOF") {
+					log.Printf("Connection error uploading file %s: %v\n", id, err)
+				} else {
+					log.Printf("Failed to upload file %s: %v\n", id, err)
 				}
+			} else {
+				uploadCount++
+				fmt.Printf("Successfully uploaded file %s\n", id)
 			}
+		} else if existsOnServer {
+			fmt.Printf("File %s already on server\n", id)
 		}
 	}
 
+	fmt.Printf("File sync completed: downloaded %d, uploaded %d\n", downloadCount, uploadCount)
 	return nil
 }
 
@@ -288,6 +320,24 @@ func (d *DataCommands) printSecret(secret *common.SecretData) error {
 	return nil
 }
 
+// checkLocalFileExists проверяет существует ли локальный файл
+func (d *DataCommands) checkLocalFileExists(fileID uuid.UUID) bool {
+	filePath := filepath.Join(d.binDir, fileID.String())
+	_, err := os.Stat(filePath)
+	return err == nil
+}
+
+// getLocalFileModTime возвращает время модификации локального файла
+func (d *DataCommands) getLocalFileModTime(fileID uuid.UUID) time.Time {
+	filePath := filepath.Join(d.binDir, fileID.String())
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
+}
+
+/*
 // handleConflicts обрабатывает конфликты автоматически (пока просто логируем)
 func (d *DataCommands) handleConflicts(conflicts []common.SecretData) int {
 	if len(conflicts) == 0 {
@@ -308,6 +358,7 @@ func (d *DataCommands) handleConflicts(conflicts []common.SecretData) int {
 
 	return len(conflicts)
 }
+*/
 
 // applyResolutions применяет разрешения конфликтов
 func (d *DataCommands) applyResolutions(resolutions []common.ConflictResolution) {
