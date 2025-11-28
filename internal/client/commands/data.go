@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"github.com/google/uuid"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,15 +21,27 @@ type DataCommands struct {
 	manager    *manager.DataManager
 	grpcClient *grpc.GRPCClient
 	resolver   *conflict.Resolver
+	binDir     string
 }
 
 // NewDataCommands создает новый DataCommands
 func NewDataCommands(cfg *config.Config, dataManager *manager.DataManager, grpcClient *grpc.GRPCClient) *DataCommands {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+
+		log.Fatalf(err.Error())
+	}
+	binDir := filepath.Join(homeDir, ".gophkeeper", "bin")
+	if err := os.MkdirAll(binDir, 0700); err != nil {
+		log.Fatalf(err.Error())
+	}
+
 	return &DataCommands{
 		cfg:        cfg,
 		manager:    dataManager,
 		grpcClient: grpcClient,
 		resolver:   conflict.NewResolver(),
+		binDir:     binDir,
 	}
 }
 
@@ -50,7 +63,6 @@ func (d *DataCommands) Sync() error {
 		}
 	}
 
-	// Конвертируем []*common.SecretData в []common.SecretData
 	localSecretsData := make([]common.SecretData, len(localSecrets))
 	for i, secret := range localSecrets {
 		localSecretsData[i] = *secret
@@ -83,6 +95,11 @@ func (d *DataCommands) Sync() error {
 		if err := d.manager.SaveSecret(&serverSecret); err != nil {
 			fmt.Printf("Warning: failed to save secret %s: %v\n", serverSecret.ID, err)
 		}
+	}
+
+	err = d.SyncFiles(localSecretsData, syncResult.Data)
+	if err != nil {
+		return err
 	}
 
 	fmt.Printf("✅ Sync completed. Received %d items, resolved %d conflicts, send %d items\n",
@@ -167,6 +184,46 @@ func (d *DataCommands) Get(id string) error {
 // Delete удаляет данные
 func (d *DataCommands) Delete(id string) error {
 	return d.manager.DeleteData(id)
+}
+
+func (d *DataCommands) SyncFiles(local []common.SecretData, origin []common.SecretData) error {
+	var localBins = map[uuid.UUID]bool{}
+	for _, ld := range local {
+		if ld.Type == common.BinaryDataType {
+			localBins[ld.ID] = true
+		}
+	}
+
+	var originBins = map[uuid.UUID]bool{}
+	for _, ld := range origin {
+		if ld.Type == common.BinaryDataType {
+			originBins[ld.ID] = true
+		}
+	}
+
+	for _, sd := range origin {
+		if sd.Type == common.BinaryDataType {
+			if _, ok := localBins[sd.ID]; !ok {
+				err := d.grpcClient.DownloadFile(sd.ID.String(), filepath.Join(d.binDir, sd.ID.String()))
+				if err != nil {
+					log.Printf("Warning: failed to download file %s: %v\n", sd.ID.String(), err)
+				}
+			}
+		}
+	}
+
+	for _, sd := range local {
+		if sd.Type == common.BinaryDataType {
+			if _, ok := originBins[sd.ID]; !ok || sd.Type == common.TextDataType {
+				err := d.grpcClient.UploadFile(filepath.Join(d.binDir, sd.ID.String()), sd.ID.String())
+				if err != nil {
+					log.Printf("Warning: failed to upload file %s: %v\n", sd.ID.String(), err)
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (d *DataCommands) printSecret(secret *common.SecretData) error {

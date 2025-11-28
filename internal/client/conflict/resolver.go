@@ -74,7 +74,7 @@ func (r *Resolver) resolveSingleConflict(conflict common.Conflict) (*common.Conf
 // displayConflictInfo показывает информацию о конфликте
 func (r *Resolver) displayConflictInfo(conflict common.Conflict) {
 	fmt.Printf("Conflict: %s\n", conflict.Reason)
-	fmt.Printf("Secret: %s (ID: %s)\n", conflict.LocalSecret.Metadata, conflict.SecretID)
+	//fmt.Printf("Secret: %s (ID: %s)\n", conflict.LocalSecret.Metadata, conflict.SecretID)
 
 	if conflict.LocalSecret != nil && conflict.RemoteSecret != nil {
 		differences := common.CompareSecrets(conflict.LocalSecret, conflict.RemoteSecret)

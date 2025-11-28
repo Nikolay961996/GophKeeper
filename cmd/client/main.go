@@ -1,5 +1,4 @@
 /*
-save binary
 file chanks
 conflicts
 postgre

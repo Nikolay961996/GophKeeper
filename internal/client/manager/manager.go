@@ -337,7 +337,6 @@ func (m *DataManager) saveLocalData() error {
 		return err
 	}
 
-	log.Printf("Success saved to local")
 	return os.WriteFile(m.dataFile, data, 0600)
 }
 

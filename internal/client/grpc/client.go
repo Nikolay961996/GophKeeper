@@ -171,7 +171,7 @@ func (c *GRPCClient) Sync(lastSync time.Time, data []common.SecretData) (*common
 }
 
 // UploadFile загружает файл на сервер (без изменений)
-func (c *GRPCClient) UploadFile(filePath, name string) error {
+func (c *GRPCClient) UploadFile(filePath, fileID string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %v", err)
@@ -193,9 +193,8 @@ func (c *GRPCClient) UploadFile(filePath, name string) error {
 		return fmt.Errorf("failed to get file info: %v", err)
 	}
 
-	chunkSize := 64 * 1024
+	chunkSize := 64 * 1024 // 64 KB
 	buffer := make([]byte, chunkSize)
-	fileID := fmt.Sprintf("%d", time.Now().UnixNano())
 
 	for i := 0; ; i++ {
 		n, err := file.Read(buffer)
@@ -208,7 +207,7 @@ func (c *GRPCClient) UploadFile(filePath, name string) error {
 
 		chunk := &api.FileChunk{
 			FileId:      fileID,
-			FileName:    name,
+			FileName:    fileID,
 			ChunkData:   buffer[:n],
 			ChunkIndex:  int32(i),
 			TotalChunks: int32((int(fileInfo.Size()) + chunkSize - 1) / chunkSize),
@@ -225,7 +224,7 @@ func (c *GRPCClient) UploadFile(filePath, name string) error {
 	}
 
 	if response.Success {
-		fmt.Printf("File uploaded successfully: %s (%d bytes)\n", name, response.FileSize)
+		fmt.Printf("File uploaded successfully: %s (%d bytes)\n", fileID, response.FileSize)
 	} else {
 		return fmt.Errorf("upload failed")
 	}

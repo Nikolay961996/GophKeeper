@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 
 	"gophkeeper/api"
 	"gophkeeper/internal/common"
@@ -27,6 +28,7 @@ type GRPCServer struct {
 	storage    storage.Storage
 	jwtSecret  string
 	grpcServer *grpc.Server
+	mutex      sync.Mutex
 }
 
 // NewGRPCServer создает новый gRPC сервер
@@ -34,6 +36,7 @@ func NewGRPCServer(storage storage.Storage, jwtSecret string) *GRPCServer {
 	return &GRPCServer{
 		storage:   storage,
 		jwtSecret: jwtSecret,
+		mutex:     sync.Mutex{},
 	}
 }
 
@@ -269,20 +272,25 @@ func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
 
 		// Создаем метаданные при получении первого чанка
 		if fileMetadata == nil {
-			fileMetadata = &storage.FileMetadata{
-				ID:          uuid.MustParse(chunk.FileId),
-				UserID:      userID,
-				FileName:    chunk.FileName,
-				TotalChunks: int(chunk.TotalChunks),
-				ChunkSize:   len(chunk.ChunkData),
-				CreatedAt:   common.Now(),
-				UpdatedAt:   common.Now(),
-			}
+			s.mutex.Lock()
+			if fileMetadata == nil {
+				fileMetadata = &storage.FileMetadata{
+					ID:          uuid.MustParse(chunk.FileId),
+					UserID:      userID,
+					FileName:    chunk.FileName,
+					TotalChunks: int(chunk.TotalChunks),
+					ChunkSize:   len(chunk.ChunkData),
+					CreatedAt:   common.Now(),
+					UpdatedAt:   common.Now(),
+				}
 
-			// Сохраняем метаданные файла
-			if err := fileStorage.CreateFileMetadata(fileMetadata); err != nil {
-				return status.Error(codes.Internal, fmt.Sprintf("failed to create file metadata: %v", err))
+				// Сохраняем метаданные файла
+				if err := fileStorage.CreateFileMetadata(fileMetadata); err != nil {
+					s.mutex.Unlock()
+					return status.Error(codes.Internal, fmt.Sprintf("failed to create file metadata: %v", err))
+				}
 			}
+			s.mutex.Unlock()
 		}
 
 		// Сохраняем чанк
