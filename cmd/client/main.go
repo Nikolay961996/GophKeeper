@@ -62,7 +62,6 @@ func main() {
 		syncCmd(cfg, grpcClient),
 		addLoginCmd(cfg, grpcClient),
 		listCmd(cfg, grpcClient),
-		conflictsCmd(cfg, grpcClient),
 		showCmd(cfg, grpcClient),
 		addCardCmd(cfg, grpcClient),
 		addTextCmd(cfg, grpcClient),
@@ -360,27 +359,4 @@ func getDataManager(needMasterPassword bool, cfg *config.Config) (*manager.DataM
 	var err error
 	dataManager, err = manager.NewDataManager(cfg, masterPassword)
 	return dataManager, err
-}
-
-func conflictsCmd(cfg *config.Config, grpcClient *grpc.GRPCClient) *cobra.Command {
-	var conflicts = &cobra.Command{
-		Use:   "conflicts",
-		Short: "Show and resolve pending conflicts",
-		Run: func(cmd *cobra.Command, args []string) {
-			m, err := getDataManager(true, cfg)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				os.Exit(1)
-			}
-
-			_ = commands.NewDataCommands(cfg, m, grpcClient)
-
-			// Пока просто сообщаем что конфликтов нет
-			// В реальной реализации здесь был бы показ pending конфликтов
-			fmt.Println("No pending conflicts found.")
-			fmt.Println("Conflicts are automatically detected and resolved during sync.")
-		},
-	}
-
-	return conflicts
 }

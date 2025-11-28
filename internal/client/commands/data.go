@@ -79,21 +79,41 @@ func (d *DataCommands) Sync() error {
 	detectedConflicts := conflictManager.DetectConflicts(localSecretsData, syncResult.Data, lastSync)
 
 	// Обрабатываем конфликты если есть
+	resolvedCount := 0
 	if len(detectedConflicts) > 0 {
-		fmt.Printf("\n🚨 Found %d conflicts during sync!\n", len(detectedConflicts))
-		resolutions, err := d.resolver.ResolveConflicts(detectedConflicts)
+		fmt.Printf("\n⚠️ Found %d conflicts during sync!\n", len(detectedConflicts))
+
+		// Интерактивное разрешение конфликтов
+		resolutions, err := d.resolveConflictsInteractively(detectedConflicts)
 		if err != nil {
 			return fmt.Errorf("error resolving conflicts: %v", err)
 		}
 
-		d.applyResolutions(resolutions)
+		// Применяем разрешения
+		resolvedCount = d.applyConflictResolutions(resolutions)
+
+		fmt.Printf("✅ Resolved %d out of %d conflicts\n", resolvedCount, len(detectedConflicts))
 	}
 
 	// Сохраняем неконфликтные данные с сервера
 	nonConflictData := d.filterNonConflictData(syncResult.Data, detectedConflicts)
+	serverItemsSaved := 0
 	for _, serverSecret := range nonConflictData {
 		if err := d.manager.SaveSecret(&serverSecret); err != nil {
 			fmt.Printf("Warning: failed to save secret %s: %v\n", serverSecret.ID, err)
+		} else {
+			serverItemsSaved++
+		}
+	}
+
+	// Отправляем локальные данные на сервер (кроме тех, что были в конфликтах)
+	localItemsToSend := d.filterLocalDataForSync(localSecretsData, detectedConflicts)
+	if len(localItemsToSend) > 0 {
+		// Для простоты отправляем все локальные данные заново
+		// В реальной реализации здесь была бы более сложная логика
+		_, err := d.grpcClient.Sync(lastSync, localItemsToSend)
+		if err != nil {
+			fmt.Printf("Warning: failed to send local changes to server: %v\n", err)
 		}
 	}
 
@@ -102,8 +122,8 @@ func (d *DataCommands) Sync() error {
 		return err
 	}
 
-	fmt.Printf("✅ Sync completed. Received %d items, resolved %d conflicts, send %d items\n",
-		len(syncResult.Data), len(detectedConflicts), len(localSecretsData))
+	fmt.Printf("✅ Sync completed. Received %d items, resolved %d conflicts, sent %d items\n",
+		len(syncResult.Data), resolvedCount, len(localItemsToSend))
 
 	return nil
 }
@@ -320,4 +340,206 @@ func (d *DataCommands) filterNonConflictData(serverData []common.SecretData, con
 	}
 
 	return nonConflict
+}
+
+// resolveConflictsInteractively интерактивно разрешает конфликты
+func (d *DataCommands) resolveConflictsInteractively(conflicts []common.Conflict) ([]common.ConflictResolution, error) {
+	var resolutions []common.ConflictResolution
+
+	for i, c := range conflicts {
+		fmt.Printf("\n=== Conflict %d/%d: %s ===\n", i+1, len(conflicts), c.Reason)
+
+		resolution, err := d.promptConflictResolution(c)
+		if err != nil {
+			return nil, err
+		}
+
+		if resolution != nil {
+			resolutions = append(resolutions, *resolution)
+		}
+	}
+
+	return resolutions, nil
+}
+
+// promptConflictResolution запрашивает у пользователя как разрешить конфликт
+func (d *DataCommands) promptConflictResolution(conflict common.Conflict) (*common.ConflictResolution, error) {
+	// Показываем информацию о конфликте
+	d.displayConflictDetails(conflict)
+
+	// Предлагаем варианты разрешения
+	for {
+		fmt.Println("\nHow would you like to resolve this conflict?")
+		fmt.Println("1. Keep local version")
+		fmt.Println("2. Keep server version")
+		fmt.Println("3. Keep newer version (by modification time)")
+		fmt.Println("4. Skip this conflict for now")
+
+		if conflict.LocalSecret != nil && conflict.RemoteSecret != nil {
+			fmt.Println("5. Show detailed comparison")
+		}
+
+		fmt.Print("Choose option (1-5): ")
+
+		var choice int
+		_, err := fmt.Scanln(&choice)
+		if err != nil {
+			return nil, err
+		}
+
+		switch choice {
+		case 1: // Keep local
+			if conflict.LocalSecret == nil {
+				fmt.Println("Cannot keep local - local version is deleted")
+				continue
+			}
+			return &common.ConflictResolution{
+				ConflictID: conflict.ID,
+				Winner:     conflict.LocalSecret,
+				Action:     "keep_local",
+				ResolvedAt: time.Now(),
+			}, nil
+
+		case 2: // Keep server
+			if conflict.RemoteSecret == nil {
+				fmt.Println("Cannot keep server - server version is deleted")
+				continue
+			}
+			return &common.ConflictResolution{
+				ConflictID: conflict.ID,
+				Winner:     conflict.RemoteSecret,
+				Action:     "keep_remote",
+				ResolvedAt: time.Now(),
+			}, nil
+
+		case 3: // Keep newer
+			if conflict.LocalSecret != nil && conflict.RemoteSecret != nil {
+				var winner *common.SecretData
+				if conflict.LocalSecret.UpdatedAt.After(conflict.RemoteSecret.UpdatedAt) {
+					winner = conflict.LocalSecret
+					fmt.Println("Keeping local version (newer)")
+				} else {
+					winner = conflict.RemoteSecret
+					fmt.Println("Keeping server version (newer)")
+				}
+				return &common.ConflictResolution{
+					ConflictID: conflict.ID,
+					Winner:     winner,
+					Action:     "keep_newer",
+					ResolvedAt: time.Now(),
+				}, nil
+			} else {
+				fmt.Println("Cannot compare versions - one side is deleted")
+				continue
+			}
+
+		case 4: // Skip
+			fmt.Println("Skipping this conflict")
+			return nil, nil
+
+		case 5: // Show details
+			if conflict.LocalSecret != nil && conflict.RemoteSecret != nil {
+				d.showDetailedComparison(conflict)
+			} else {
+				fmt.Println("Detailed comparison not available")
+			}
+			continue
+
+		default:
+			fmt.Println("Invalid option, please try again")
+			continue
+		}
+	}
+}
+
+// displayConflictDetails показывает детали конфликта
+func (d *DataCommands) displayConflictDetails(conflict common.Conflict) {
+	fmt.Printf("Secret: %s\n", conflict.SecretID)
+	fmt.Printf("Type: %s\n", conflict.Type)
+	fmt.Printf("Reason: %s\n", conflict.Reason)
+
+	if conflict.LocalSecret != nil {
+		fmt.Printf("Local version: v%d, updated: %s\n",
+			conflict.LocalSecret.Version,
+			conflict.LocalSecret.UpdatedAt.Format("2006-01-02 15:04:05"))
+	} else {
+		fmt.Println("Local version: DELETED")
+	}
+
+	if conflict.RemoteSecret != nil {
+		fmt.Printf("Server version: v%d, updated: %s\n",
+			conflict.RemoteSecret.Version,
+			conflict.RemoteSecret.UpdatedAt.Format("2006-01-02 15:04:05"))
+	} else {
+		fmt.Println("Server version: DELETED")
+	}
+}
+
+// showDetailedComparison показывает детальное сравнение
+func (d *DataCommands) showDetailedComparison(conflict common.Conflict) {
+	fmt.Println("\n--- Detailed Comparison ---")
+	fmt.Printf("%-20s | %-20s | %-20s\n", "FIELD", "LOCAL", "SERVER")
+	fmt.Printf("%-20s | %-20s | %-20s\n", "--------------------", "--------------------", "--------------------")
+
+	fmt.Printf("%-20s | %-20s | %-20s\n",
+		"Name",
+		conflict.LocalSecret.Metadata,
+		conflict.RemoteSecret.Metadata)
+
+	fmt.Printf("%-20s | %-20s | %-20s\n",
+		"Type",
+		string(conflict.LocalSecret.Type),
+		string(conflict.RemoteSecret.Type))
+
+	fmt.Printf("%-20s | %-20d | %-20d\n",
+		"Version",
+		conflict.LocalSecret.Version,
+		conflict.RemoteSecret.Version)
+
+	fmt.Printf("%-20s | %-20s | %-20s\n",
+		"Last Modified",
+		conflict.LocalSecret.UpdatedAt.Format("01/02 15:04"),
+		conflict.RemoteSecret.UpdatedAt.Format("01/02 15:04"))
+
+	fmt.Printf("%-20s | %-20d | %-20d\n",
+		"Data Size",
+		len(conflict.LocalSecret.Data),
+		len(conflict.RemoteSecret.Data))
+}
+
+// applyConflictResolutions применяет разрешения конфликтов
+func (d *DataCommands) applyConflictResolutions(resolutions []common.ConflictResolution) int {
+	appliedCount := 0
+
+	for _, resolution := range resolutions {
+		if resolution.Winner != nil {
+			if err := d.manager.SaveSecret(resolution.Winner); err != nil {
+				fmt.Printf("Warning: failed to apply resolution for conflict %s: %v\n",
+					resolution.ConflictID, err)
+			} else {
+				appliedCount++
+				fmt.Printf("Applied resolution for conflict %s: %s\n",
+					resolution.ConflictID, resolution.Action)
+			}
+		}
+	}
+
+	return appliedCount
+}
+
+// filterLocalDataForSync фильтрует локальные данные для отправки на сервер
+func (d *DataCommands) filterLocalDataForSync(localData []common.SecretData, conflicts []common.Conflict) []common.SecretData {
+	conflictSecretIDs := make(map[uuid.UUID]bool)
+	for _, c := range conflicts {
+		conflictSecretIDs[c.SecretID] = true
+	}
+
+	var filtered []common.SecretData
+	for _, secret := range localData {
+		if !conflictSecretIDs[secret.ID] {
+			filtered = append(filtered, secret)
+		}
+	}
+
+	return filtered
 }

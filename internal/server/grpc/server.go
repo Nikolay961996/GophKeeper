@@ -179,8 +179,6 @@ func (s *GRPCServer) handleLogin(payload []byte) (*common.OperationResponse, err
 
 // handleSync обработчик синхронизации
 func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.OperationResponse, error) {
-	log.Println("handleSync")
-
 	var syncOp common.SyncOp
 	if err := common.UnmarshalOperation(payload, &syncOp); err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("invalid sync data")), nil
@@ -189,30 +187,39 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 	// Получаем изменения с сервера
 	serverSecretsPtr, err := s.storage.GetSecretsSince(userID, syncOp.LastSync)
 	if err != nil {
-		return common.CreateErrorResponse(fmt.Errorf("error getting secrets - check token")), nil
+		return common.CreateErrorResponse(fmt.Errorf("error getting secrets")), nil
 	}
 
-	// Конвертируем []*common.SecretData в []common.SecretData
 	serverSecrets := make([]common.SecretData, len(serverSecretsPtr))
 	for i, secretPtr := range serverSecretsPtr {
 		serverSecrets[i] = *secretPtr
 	}
 
-	// Сохраняем изменения от клиента и собираем конфликты
+	// Обрабатываем клиентские данные и собираем конфликты
 	var conflicts []common.SecretData
 	for _, clientSecret := range syncOp.Data {
 		existingSecret, _ := s.getSecretByID(userID, clientSecret.ID)
 
 		if existingSecret != nil {
-			// Проверяем версию для обнаружения конфликтов
-			if existingSecret.Version > clientSecret.Version {
-				// Конфликт: серверная версия новее
+			// Обнаружение конфликта: обе версии изменены после последней синхронизации
+			clientModified := clientSecret.UpdatedAt.After(syncOp.LastSync)
+			serverModified := existingSecret.UpdatedAt.After(syncOp.LastSync)
+
+			if clientModified && serverModified {
+				// Конфликт: обе стороны изменили данные
 				conflicts = append(conflicts, *existingSecret)
 				continue
 			}
 
-			clientSecret.Version = existingSecret.Version + 1
+			if clientModified {
+				// Только клиент изменил - принимаем изменения
+				clientSecret.Version = existingSecret.Version + 1
+			} else {
+				// Только сервер изменил или ни одна сторона - пропускаем
+				continue
+			}
 		} else {
+			// Новая запись
 			clientSecret.Version = 1
 		}
 

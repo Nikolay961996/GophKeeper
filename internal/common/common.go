@@ -79,6 +79,31 @@ type BinaryMetaData struct {
 	FileName string `json:"file_name"`
 }
 
+// HasConflictForSecret проверяет есть ли конфликт для конкретного секрета
+func (cm *ConflictManager) HasConflictForSecret(secretID uuid.UUID) bool {
+	for _, conflict := range cm.pendingConflicts {
+		if conflict.SecretID == secretID {
+			return true
+		}
+	}
+	return false
+}
+
+// RemoveConflict удаляет конфликт
+func (cm *ConflictManager) RemoveConflict(conflictID string) {
+	delete(cm.pendingConflicts, conflictID)
+}
+
+// GetConflictBySecretID возвращает конфликт по ID секрета
+func (cm *ConflictManager) GetConflictBySecretID(secretID uuid.UUID) *Conflict {
+	for _, conflict := range cm.pendingConflicts {
+		if conflict.SecretID == secretID {
+			return conflict
+		}
+	}
+	return nil
+}
+
 // ParseUUID парсит строку в UUID
 func ParseUUID(s string) (uuid.UUID, error) {
 	return uuid.Parse(s)
