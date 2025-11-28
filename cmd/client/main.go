@@ -1,7 +1,5 @@
 /*
-file chanks
 conflicts
-postgre
 linter
 tests
 */
