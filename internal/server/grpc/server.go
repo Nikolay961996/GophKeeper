@@ -1,3 +1,4 @@
+// Package grpc contains server implementation
 package grpc
 
 import (
@@ -19,15 +20,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Константа для ключа контекста (перенесем из middleware)
-const userIDKey = "userID"
-
 // GRPCServer представляет gRPC сервер
 type GRPCServer struct {
 	api.UnimplementedGophKeeperServer
 	storage    storage.Storage
-	jwtSecret  string
 	grpcServer *grpc.Server
+	jwtSecret  string
 	mutex      sync.Mutex
 }
 
@@ -129,7 +127,7 @@ func (s *GRPCServer) handleRegister(payload []byte) (*common.OperationResponse, 
 		CreatedAt:    common.Now(),
 	}
 
-	if err := s.storage.CreateUser(user); err != nil {
+	if err = s.storage.CreateUser(user); err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("error creating user")), nil
 	}
 
@@ -243,7 +241,7 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
 	log.Println("UploadFile - starting chunked upload")
 
-	userIDValue := stream.Context().Value(userIDKey)
+	userIDValue := stream.Context().Value(common.UserIDKey)
 	if userIDValue == nil {
 		return status.Error(codes.Unauthenticated, "user not authenticated")
 	}
@@ -333,7 +331,7 @@ func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
 func (s *GRPCServer) DownloadFile(req *api.DownloadRequest, stream api.GophKeeper_DownloadFileServer) error {
 	log.Println("DownloadFile - starting chunked download")
 
-	userIDValue := stream.Context().Value(userIDKey)
+	userIDValue := stream.Context().Value(common.UserIDKey)
 	if userIDValue == nil {
 		return status.Error(codes.Unauthenticated, "user not authenticated")
 	}
@@ -411,7 +409,7 @@ func (s *GRPCServer) unaryAuthInterceptor(ctx context.Context, req interface{}, 
 		return nil, err
 	}
 
-	ctx = context.WithValue(ctx, userIDKey, userID)
+	ctx = context.WithValue(ctx, common.UserIDKey, userID)
 	return handler(ctx, req)
 }
 
@@ -424,7 +422,7 @@ func (s *GRPCServer) streamAuthInterceptor(srv interface{}, ss grpc.ServerStream
 		return err
 	}
 
-	ctx := context.WithValue(ss.Context(), userIDKey, userID)
+	ctx := context.WithValue(ss.Context(), common.UserIDKey, userID)
 	return handler(srv, &wrappedStream{ss, ctx})
 }
 

@@ -1,3 +1,4 @@
+// Package conflict for detect and resolve conflicts
 package conflict
 
 import (

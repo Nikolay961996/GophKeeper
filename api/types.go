@@ -1,3 +1,4 @@
+// Package api and proto functions
 package api
 
 import (

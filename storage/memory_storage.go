@@ -10,9 +10,9 @@ import (
 
 // MemoryStorage реализует хранилище в памяти
 type MemoryStorage struct {
-	mu      sync.RWMutex
 	users   map[uuid.UUID]*common.User
-	secrets map[uuid.UUID][]*common.SecretData // user_id -> []SecretData
+	secrets map[uuid.UUID][]*common.SecretData
+	mu      sync.RWMutex
 }
 
 // NewMemoryStorage создает новый экземпляр MemoryStorage

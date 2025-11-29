@@ -1,3 +1,4 @@
+// Package crypto contains encryption and decryption logics
 package crypto
 
 import (

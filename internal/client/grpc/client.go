@@ -1,3 +1,4 @@
+// Package grpc contains client implementation
 package grpc
 
 import (
@@ -181,9 +182,9 @@ func (c *GRPCClient) UploadFile(filePath, fileID string) error {
 		return fmt.Errorf("failed to open file: %v", err)
 	}
 	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Fatalf("failed to close file: %v", err)
+		e := file.Close()
+		if e != nil {
+			log.Fatalf("failed to close file: %v", e)
 		}
 	}(file)
 
@@ -201,12 +202,12 @@ func (c *GRPCClient) UploadFile(filePath, fileID string) error {
 	buffer := make([]byte, chunkSize)
 
 	for i := 0; ; i++ {
-		n, err := file.Read(buffer)
-		if err == io.EOF {
+		n, e := file.Read(buffer)
+		if e == io.EOF {
 			break
 		}
-		if err != nil {
-			return fmt.Errorf("failed to read file: %v", err)
+		if e != nil {
+			return fmt.Errorf("failed to read file: %v", e)
 		}
 
 		chunk := &api.FileChunk{
@@ -217,7 +218,7 @@ func (c *GRPCClient) UploadFile(filePath, fileID string) error {
 			TotalChunks: int32((int(fileInfo.Size()) + chunkSize - 1) / chunkSize),
 		}
 
-		if err := stream.Send(chunk); err != nil {
+		if err = stream.Send(chunk); err != nil {
 			return fmt.Errorf("failed to send chunk: %v", err)
 		}
 	}

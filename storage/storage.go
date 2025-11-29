@@ -1,3 +1,4 @@
+// Package storage contains functions for store data
 package storage
 
 import (

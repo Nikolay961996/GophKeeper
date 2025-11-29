@@ -1,5 +1,4 @@
 /*
-conflicts
 linter
 tests
 */
@@ -106,8 +105,8 @@ func userCmd(cfg *config.Config) *cobra.Command {
 			} else {
 				fmt.Println("Поле 'login' не найдено в токене")
 			}
-			if userId, exists := claims["user_id"]; exists {
-				fmt.Printf("user_id: %s\n", userId)
+			if userID, exists := claims["user_id"]; exists {
+				fmt.Printf("user_id: %s\n", userID)
 			} else {
 				fmt.Println("Поле 'user_id' не найдено в токене")
 			}

@@ -1,3 +1,4 @@
+// Package config for client configuration
 package config
 
 import (

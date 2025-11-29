@@ -29,12 +29,11 @@ type DataCommands struct {
 func NewDataCommands(cfg *config.Config, dataManager *manager.DataManager, grpcClient *grpc.GRPCClient) *DataCommands {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-
-		log.Fatalf(err.Error())
+		log.Fatalln(err.Error())
 	}
 	binDir := filepath.Join(homeDir, ".gophkeeper", "bin")
-	if err := os.MkdirAll(binDir, 0700); err != nil {
-		log.Fatalf(err.Error())
+	if err = os.MkdirAll(binDir, 0700); err != nil {
+		log.Fatalln(err.Error())
 	}
 
 	return &DataCommands{
@@ -85,9 +84,9 @@ func (d *DataCommands) Sync() error {
 		fmt.Printf("\n⚠️ Found %d conflicts during sync!\n", len(detectedConflicts))
 
 		// Интерактивное разрешение конфликтов
-		resolutions, err := d.resolveConflictsInteractively(detectedConflicts)
-		if err != nil {
-			return fmt.Errorf("error resolving conflicts: %v", err)
+		resolutions, e := d.resolveConflictsInteractively(detectedConflicts)
+		if e != nil {
+			return fmt.Errorf("error resolving conflicts: %v", e)
 		}
 
 		// Применяем разрешения
@@ -100,7 +99,7 @@ func (d *DataCommands) Sync() error {
 	nonConflictData := d.filterNonConflictData(syncResult.Data, detectedConflicts)
 	serverItemsSaved := 0
 	for _, serverSecret := range nonConflictData {
-		if err := d.manager.SaveSecret(&serverSecret); err != nil {
+		if err = d.manager.SaveSecret(&serverSecret); err != nil {
 			fmt.Printf("Warning: failed to save secret %s: %v\n", serverSecret.ID, err)
 		} else {
 			serverItemsSaved++
@@ -112,7 +111,7 @@ func (d *DataCommands) Sync() error {
 	if len(localItemsToSend) > 0 {
 		// Для простоты отправляем все локальные данные заново
 		// В реальной реализации здесь была бы более сложная логика
-		_, err := d.grpcClient.Sync(lastSync, localItemsToSend)
+		_, err = d.grpcClient.Sync(lastSync, localItemsToSend)
 		if err != nil {
 			fmt.Printf("Warning: failed to send local changes to server: %v\n", err)
 		}
@@ -234,7 +233,7 @@ func (d *DataCommands) SyncFiles(local []common.SecretData, server []common.Secr
 
 	// Скачиваем отсутствующие файлы с сервера
 	downloadCount := 0
-	for id, _ := range serverBins {
+	for id := range serverBins {
 		localFileExists := d.checkLocalFileExists(id)
 
 		if !localFileExists {
@@ -250,7 +249,7 @@ func (d *DataCommands) SyncFiles(local []common.SecretData, server []common.Secr
 
 	// Загружаем на сервер ТОЛЬКО если файла действительно нет на сервере
 	uploadCount := 0
-	for id, _ := range localBins {
+	for id := range localBins {
 		_, existsOnServer := serverBins[id]
 		localFileExists := d.checkLocalFileExists(id)
 
@@ -327,15 +326,15 @@ func (d *DataCommands) checkLocalFileExists(fileID uuid.UUID) bool {
 	return err == nil
 }
 
-// getLocalFileModTime возвращает время модификации локального файла
-func (d *DataCommands) getLocalFileModTime(fileID uuid.UUID) time.Time {
-	filePath := filepath.Join(d.binDir, fileID.String())
-	info, err := os.Stat(filePath)
-	if err != nil {
-		return time.Time{}
-	}
-	return info.ModTime()
-}
+//// getLocalFileModTime возвращает время модификации локального файла
+//func (d *DataCommands) getLocalFileModTime(fileID uuid.UUID) time.Time {
+//	filePath := filepath.Join(d.binDir, fileID.String())
+//	info, err := os.Stat(filePath)
+//	if err != nil {
+//		return time.Time{}
+//	}
+//	return info.ModTime()
+//}
 
 /*
 // handleConflicts обрабатывает конфликты автоматически (пока просто логируем)
@@ -360,21 +359,21 @@ func (d *DataCommands) handleConflicts(conflicts []common.SecretData) int {
 }
 */
 
-// applyResolutions применяет разрешения конфликтов
-func (d *DataCommands) applyResolutions(resolutions []common.ConflictResolution) {
-	appliedCount := 0
-	for _, resolution := range resolutions {
-		if resolution.Winner != nil {
-			if err := d.manager.SaveSecret(resolution.Winner); err != nil {
-				fmt.Printf("Warning: failed to apply resolution for conflict %s: %v\n",
-					resolution.ConflictID, err)
-			} else {
-				appliedCount++
-			}
-		}
-	}
-	fmt.Printf("Applied %d conflict resolutions\n", appliedCount)
-}
+//// applyResolutions применяет разрешения конфликтов
+//func (d *DataCommands) applyResolutions(resolutions []common.ConflictResolution) {
+//	appliedCount := 0
+//	for _, resolution := range resolutions {
+//		if resolution.Winner != nil {
+//			if err := d.manager.SaveSecret(resolution.Winner); err != nil {
+//				fmt.Printf("Warning: failed to apply resolution for conflict %s: %v\n",
+//					resolution.ConflictID, err)
+//			} else {
+//				appliedCount++
+//			}
+//		}
+//	}
+//	fmt.Printf("Applied %d conflict resolutions\n", appliedCount)
+//}
 
 // filterNonConflictData фильтрует данные без конфликтов
 func (d *DataCommands) filterNonConflictData(serverData []common.SecretData, conflicts []common.Conflict) []common.SecretData {

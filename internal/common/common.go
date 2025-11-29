@@ -1,3 +1,4 @@
+// Package common for server and client
 package common
 
 import (
@@ -27,23 +28,23 @@ const TokenExpiration = 24 * time.Hour
 
 // User представляет пользователя системы
 type User struct {
-	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
 	Login        string    `json:"login"`
 	PasswordHash string    `json:"-"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID           uuid.UUID `json:"id"`
 }
 
 // SecretData представляет защищенные данные пользователя
 type SecretData struct {
-	ID        uuid.UUID `json:"id"`
-	UserID    uuid.UUID `json:"user_id"`
-	Type      DataType  `json:"type"`
-	Name      string    `json:"name"`
-	Data      []byte    `json:"data"` // Зашифрованные данные
-	Metadata  string    `json:"metadata"`
-	Version   int       `json:"version"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	Type      DataType  `json:"type"`
+	Name      string    `json:"name"`
+	Metadata  string    `json:"metadata"`
+	Data      []byte    `json:"data"`
+	Version   int       `json:"version"`
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
 }
 
 // DataType представляет тип хранимых данных
@@ -54,6 +55,12 @@ const (
 	TextDataType      DataType = "text_data"
 	BinaryDataType    DataType = "binary_data"
 	CardDataType      DataType = "card_data"
+)
+
+type ContextKey string
+
+const (
+	UserIDKey ContextKey = "userID"
 )
 
 // LoginPasswordData структура для данных логин/пароль
@@ -74,9 +81,9 @@ type CardData struct {
 
 // BinaryMetaData метаданные бинарного файла
 type BinaryMetaData struct {
-	Size     int    `json:"size"`
 	Name     string `json:"name"`
 	FileName string `json:"file_name"`
+	Size     int    `json:"size"`
 }
 
 // HasConflictForSecret проверяет есть ли конфликт для конкретного секрета
@@ -116,9 +123,9 @@ func MustParseUUID(s string) uuid.UUID {
 
 // JWTClaims кастомные claims для JWT
 type JWTClaims struct {
-	UserID uuid.UUID `json:"user_id"`
-	Login  string    `json:"login"`
 	jwt.RegisteredClaims
+	Login  string    `json:"login"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 var (
@@ -254,21 +261,21 @@ const (
 
 // Conflict представляет конфликт данных
 type Conflict struct {
-	ID           string       `json:"id"`
-	SecretID     uuid.UUID    `json:"secret_id"`
-	Type         ConflictType `json:"type"`
-	LocalSecret  *SecretData  `json:"local_secret,omitempty"`  // Локальная версия
-	RemoteSecret *SecretData  `json:"remote_secret,omitempty"` // Серверная версия
-	Reason       string       `json:"reason"`
 	DetectedAt   time.Time    `json:"detected_at"`
+	LocalSecret  *SecretData  `json:"local_secret,omitempty"`
+	RemoteSecret *SecretData  `json:"remote_secret,omitempty"`
+	ID           string       `json:"id"`
+	Type         ConflictType `json:"type"`
+	Reason       string       `json:"reason"`
+	SecretID     uuid.UUID    `json:"secret_id"`
 }
 
 // ConflictResolution разрешение конфликта
 type ConflictResolution struct {
-	ConflictID string      `json:"conflict_id"`
-	Winner     *SecretData `json:"winner"` // Какая версия побеждает
-	Action     string      `json:"action"` // keep_local, keep_remote, merge, cancel
 	ResolvedAt time.Time   `json:"resolved_at"`
+	Winner     *SecretData `json:"winner"`
+	ConflictID string      `json:"conflict_id"`
+	Action     string      `json:"action"`
 }
 
 // ConflictManager управляет конфликтами
@@ -446,9 +453,9 @@ type OperationRequest struct {
 
 // OperationResponse ответ операции
 type OperationResponse struct {
-	Success bool   `json:"success"`
 	Error   string `json:"error,omitempty"`
 	Payload []byte `json:"payload,omitempty"`
+	Success bool   `json:"success"`
 }
 
 // RegisterOp данные регистрации

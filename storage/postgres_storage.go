@@ -9,32 +9,31 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 	"gophkeeper/internal/common"
 )
 
 // FileMetadata представляет метаданные файла
 type FileMetadata struct {
-	ID          uuid.UUID `json:"id"`
-	UserID      uuid.UUID `json:"user_id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 	FileName    string    `json:"file_name"`
+	Checksum    string    `json:"checksum"`
+	MimeType    string    `json:"mime_type"`
 	FileSize    int64     `json:"file_size"`
 	TotalChunks int       `json:"total_chunks"`
 	ChunkSize   int       `json:"chunk_size"`
-	Checksum    string    `json:"checksum"`
-	MimeType    string    `json:"mime_type"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"user_id"`
 }
 
 // FileChunk представляет чанк файла
 type FileChunk struct {
+	CreatedAt     time.Time `json:"created_at"`
+	ChunkChecksum string    `json:"chunk_checksum"`
+	ChunkData     []byte    `json:"chunk_data"`
+	ChunkIndex    int       `json:"chunk_index"`
 	ID            uuid.UUID `json:"id"`
 	FileID        uuid.UUID `json:"file_id"`
-	ChunkIndex    int       `json:"chunk_index"`
-	ChunkData     []byte    `json:"chunk_data"`
-	ChunkChecksum string    `json:"chunk_checksum"`
-	CreatedAt     time.Time `json:"created_at"`
 }
 
 // PostgresStorage реализует хранение данных в PostgreSQL
@@ -173,7 +172,7 @@ func initTables(db *sql.DB) error {
 	}
 
 	// Инициализируем таблицы для файлов
-	if err := initFileTables(db); err != nil {
+	if err = initFileTables(db); err != nil {
 		return err
 	}
 
@@ -323,7 +322,7 @@ func (s *PostgresStorage) GetAllFileChunks(fileID uuid.UUID) ([]*FileChunk, erro
 	var chunks []*FileChunk
 	for rows.Next() {
 		chunk := &FileChunk{}
-		err := rows.Scan(
+		err = rows.Scan(
 			&chunk.ID,
 			&chunk.FileID,
 			&chunk.ChunkIndex,
@@ -362,7 +361,7 @@ func (s *PostgresStorage) GetUserFiles(userID uuid.UUID) ([]*FileMetadata, error
 	var files []*FileMetadata
 	for rows.Next() {
 		file := &FileMetadata{}
-		err := rows.Scan(
+		err = rows.Scan(
 			&file.ID,
 			&file.UserID,
 			&file.FileName,
@@ -414,7 +413,7 @@ func (s *PostgresStorage) DeleteFile(fileID uuid.UUID) error {
 	return nil
 }
 
-// Update SaveSecretData для поддержки file_id
+// SaveSecretData для поддержки file_id
 func (s *PostgresStorage) SaveSecretData(data *common.SecretData) error {
 	// Проверяем, есть ли file_id в данных
 	var fileID *uuid.UUID
@@ -587,7 +586,7 @@ func (s *PostgresStorage) GetUserSecrets(userID uuid.UUID) ([]*common.SecretData
 		secret := &common.SecretData{}
 		var typeStr string
 
-		err := rows.Scan(
+		err = rows.Scan(
 			&secret.ID,
 			&secret.UserID,
 			&typeStr,
@@ -633,7 +632,7 @@ func (s *PostgresStorage) GetSecretsSince(userID uuid.UUID, since time.Time) ([]
 		secret := &common.SecretData{}
 		var typeStr string
 
-		err := rows.Scan(
+		err = rows.Scan(
 			&secret.ID,
 			&secret.UserID,
 			&typeStr,
@@ -676,7 +675,7 @@ func (s *PostgresStorage) DeleteSecret(userID, secretID uuid.UUID) error {
 
 	// Если это бинарные данные с привязанным файлом - удаляем файл
 	if secretType == string(common.BinaryDataType) && fileID != nil {
-		if err := s.DeleteFile(*fileID); err != nil {
+		if err = s.DeleteFile(*fileID); err != nil {
 			log.Printf("Warning: failed to delete file %s: %v", fileID, err)
 			// Продолжаем удаление секрета даже если файл не удалился
 		}

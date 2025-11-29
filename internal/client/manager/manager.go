@@ -1,3 +1,4 @@
+// Package manager contains data manipulation functions
 package manager
 
 import (
@@ -19,9 +20,9 @@ import (
 type DataManager struct {
 	cfg       *config.Config
 	crypto    *crypto.ClientCrypto
-	localData map[string]*common.SecretData // ID -> SecretData
-	mu        sync.RWMutex
+	localData map[string]*common.SecretData
 	dataFile  string
+	mu        sync.RWMutex
 }
 
 // NewDataManager создает новый DataManager
@@ -212,7 +213,7 @@ func (m *DataManager) GetBinaryData(id string) (string, []byte, error) {
 	secret.Data = d
 
 	var result []byte
-	if err := m.crypto.DecryptData(secret, &result); err != nil {
+	if err = m.crypto.DecryptData(secret, &result); err != nil {
 		return "", nil, err
 	}
 
