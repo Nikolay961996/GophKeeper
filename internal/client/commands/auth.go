@@ -10,11 +10,11 @@ import (
 // AuthCommands обработчики команд аутентификации
 type AuthCommands struct {
 	cfg        *config.Config
-	grpcClient *grpc.GRPCClient
+	grpcClient grpc.ClientInterface
 }
 
 // NewAuthCommands создает новый AuthCommands
-func NewAuthCommands(cfg *config.Config, grpcClient *grpc.GRPCClient) *AuthCommands {
+func NewAuthCommands(cfg *config.Config, grpcClient grpc.ClientInterface) *AuthCommands {
 	return &AuthCommands{
 		cfg:        cfg,
 		grpcClient: grpcClient,

@@ -19,14 +19,14 @@ import (
 // DataCommands обработчики команд для работы с данными
 type DataCommands struct {
 	cfg        *config.Config
-	manager    *manager.DataManager
-	grpcClient *grpc.GRPCClient
+	manager    manager.ManagerInterface
+	grpcClient grpc.ClientInterface
 	resolver   *conflict.Resolver
 	binDir     string
 }
 
 // NewDataCommands создает новый DataCommands
-func NewDataCommands(cfg *config.Config, dataManager *manager.DataManager, grpcClient *grpc.GRPCClient) *DataCommands {
+func NewDataCommands(cfg *config.Config, dataManager manager.ManagerInterface, grpcClient grpc.ClientInterface) *DataCommands {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatalln(err.Error())

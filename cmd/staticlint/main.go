@@ -60,7 +60,6 @@ func isProjectFile(pass *analysis.Pass, file *ast.File, workDir string) bool {
 	if !file.Pos().IsValid() {
 		return false
 	}
-
 	fname := pass.Fset.File(file.Pos()).Name()
 	fname = filepath.Clean(fname)
 

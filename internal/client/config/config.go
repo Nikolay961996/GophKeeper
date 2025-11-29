@@ -63,6 +63,7 @@ func SaveConfig(config *Config) error {
 // getConfigPath возвращает путь к файлу конфигурации
 func getConfigPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
+
 	if err != nil {
 		return "", err
 	}
