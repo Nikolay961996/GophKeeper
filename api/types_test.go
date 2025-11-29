@@ -105,3 +105,35 @@ func TestTimestampConversions(t *testing.T) {
 	nilTime := TimestampToTime(nil)
 	assert.True(t, nilTime.IsZero())
 }
+
+func TestConvertFromProto_InvalidData(t *testing.T) {
+	// Test with empty ID
+	protoSecret := &SecretData{
+		Id:     "",
+		UserId: uuid.New().String(),
+		Type:   string(common.LoginPasswordType),
+	}
+
+	_, err := ConvertFromProto(protoSecret)
+	assert.Error(t, err)
+
+	// Test with empty UserID
+	protoSecret2 := &SecretData{
+		Id:     uuid.New().String(),
+		UserId: "",
+		Type:   string(common.LoginPasswordType),
+	}
+
+	_, err = ConvertFromProto(protoSecret2)
+	assert.Error(t, err)
+}
+
+func TestTimestampToTime_Nil(t *testing.T) {
+	result := TimestampToTime(nil)
+	assert.True(t, result.IsZero())
+}
+
+func TestTimeToTimestamp_ZeroTime(t *testing.T) {
+	result := TimeToTimestamp(time.Time{})
+	assert.NotNil(t, result)
+}
