@@ -75,6 +75,10 @@ func (c *GRPCClient) Execute(operation *common.OperationRequest) (*common.Operat
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	if c.client == nil {
+		return nil, fmt.Errorf("no gRPC client")
+	}
+
 	resp, err := c.client.Execute(c.withAuth(ctx), req)
 	if err != nil {
 		return nil, fmt.Errorf("gRPC call failed: %v", err)
@@ -243,6 +247,9 @@ func (c *GRPCClient) UploadFile(filePath, fileID string) error {
 // DownloadFile скачивает файл с сервера (без изменений)
 func (c *GRPCClient) DownloadFile(fileID, outputPath string) error {
 	req := &api.DownloadRequest{FileId: fileID}
+	if c.client == nil {
+		return fmt.Errorf("no gRPC client")
+	}
 	stream, err := c.client.DownloadFile(c.withAuth(context.Background()), req)
 	if err != nil {
 		return fmt.Errorf("failed to create download stream: %v", err)

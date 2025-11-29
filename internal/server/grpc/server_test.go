@@ -329,3 +329,77 @@ func TestAllServerMethods(_ *testing.T) {
 	// Create error response
 	_, _ = server.createErrorResponse(codes.Internal, "error")
 }
+
+func TestGRPCServer_Creation(t *testing.T) {
+	storage := storage.NewMemoryStorage()
+	server := NewGRPCServer(storage, "test-secret")
+	assert.NotNil(t, server)
+}
+
+func TestGRPCServer_ErrorHandling(t *testing.T) {
+	storage := storage.NewMemoryStorage()
+	server := NewGRPCServer(storage, "test-secret")
+
+	// Test createErrorResponse
+	resp, err := server.createErrorResponse(codes.Internal, "test error")
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.False(t, resp.Success)
+	assert.Equal(t, "test error", resp.Error)
+}
+
+func TestGRPCServer_Authentication_EdgeCases(t *testing.T) {
+	storage := storage.NewMemoryStorage()
+	server := NewGRPCServer(storage, "test-secret")
+
+	// Test без метаданных
+	ctx := context.Background()
+	_, err := server.authenticate(ctx)
+	assert.Error(t, err)
+
+	// Test с пустыми метаданными
+	md := metadata.New(map[string]string{})
+	ctxWithEmptyMD := metadata.NewIncomingContext(ctx, md)
+	_, err = server.authenticate(ctxWithEmptyMD)
+	assert.Error(t, err)
+
+	// Test с невалидным токеном
+	mdWithInvalidToken := metadata.New(map[string]string{
+		"authorization": "Bearer invalid-token",
+	})
+	ctxWithInvalidToken := metadata.NewIncomingContext(ctx, mdWithInvalidToken)
+	_, err = server.authenticate(ctxWithInvalidToken)
+	assert.Error(t, err)
+}
+
+func TestGRPCServer_GetSecretByID_NotFound(t *testing.T) {
+	storage := storage.NewMemoryStorage()
+	server := NewGRPCServer(storage, "test-secret")
+
+	userID := uuid.New()
+	secretID := uuid.New()
+
+	secret, err := server.getSecretByID(userID, secretID)
+	assert.Error(t, err)
+	assert.Nil(t, secret)
+}
+
+func TestGRPCServer_HandleInvalidOperations(_ *testing.T) {
+	storage := storage.NewMemoryStorage()
+	server := NewGRPCServer(storage, "test-secret")
+
+	// Test с невалидными данными
+	_, _ = server.handleRegister([]byte("invalid json"))
+	_, _ = server.handleLogin([]byte("invalid json"))
+
+	userID := uuid.New()
+	_, _ = server.handleSync(userID, []byte("invalid json"))
+}
+
+func TestWrappedStream(_ *testing.T) {
+	// Test wrappedStream
+	stream := &wrappedStream{}
+	ctx := stream.Context()
+	// Может быть nil, это нормально для теста
+	_ = ctx
+}

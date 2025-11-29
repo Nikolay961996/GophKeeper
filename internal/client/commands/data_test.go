@@ -92,14 +92,23 @@ func (m *MockDataManager) GetLoginPassword(id string) (*common.LoginPasswordData
 }
 
 func (m *MockDataManager) GetCardData(id string) (*common.CardData, error) {
+	if m.GetCardDataFunc != nil {
+		return m.GetCardDataFunc(id)
+	}
 	return nil, nil
 }
 
 func (m *MockDataManager) GetTextData(id string) (string, error) {
+	if m.GetTextDataFunc != nil {
+		return m.GetTextDataFunc(id)
+	}
 	return "", nil
 }
 
 func (m *MockDataManager) GetBinaryData(id string) (string, []byte, error) {
+	if m.GetBinaryDataFunc != nil {
+		return m.GetBinaryDataFunc(id)
+	}
 	return "", nil, nil
 }
 
@@ -326,4 +335,86 @@ func TestAllDataCommandMethods(_ *testing.T) {
 	//	Type: common.LoginPasswordType,
 	//}
 	//_ = dataCommands.printSecret(secret)
+}
+
+func TestDataCommands_AllMethods(_ *testing.T) {
+	cfg := &config.Config{Token: "test-token"}
+
+	mockManager := &MockDataManager{
+		// Все методы возвращают nil/success
+		SaveLoginPasswordFunc: func(name, login, password, site string) error { return nil },
+		SaveCardDataFunc:      func(name, number, expiry, cvv, holder, bank string) error { return nil },
+		SaveTextDataFunc:      func(name, text string) error { return nil },
+		SaveBinaryDataFunc:    func(name string, data []byte, fileName string) error { return nil },
+		ListDataFunc:          func() []*common.SecretData { return []*common.SecretData{} },
+		GetSecretByIDFunc:     func(id string) *common.SecretData { return nil },
+		DeleteDataFunc:        func(id string) error { return nil },
+		SaveSecretFunc:        func(secret *common.SecretData) error { return nil },
+		GetLoginPasswordFunc: func(id string) (*common.LoginPasswordData, error) {
+			return &common.LoginPasswordData{}, nil
+		},
+		GetCardDataFunc:   func(id string) (*common.CardData, error) { return &common.CardData{}, nil },
+		GetTextDataFunc:   func(id string) (string, error) { return "text", nil },
+		GetBinaryDataFunc: func(id string) (string, []byte, error) { return "file", []byte("data"), nil },
+	}
+
+	mockClient := &MockGRPCClient{
+		SyncFunc: func(lastSync time.Time, data []common.SecretData) (*common.SyncResult, error) {
+			return &common.SyncResult{}, nil
+		},
+	}
+
+	dataCommands := NewDataCommands(cfg, mockManager, mockClient)
+
+	// Вызываем все публичные методы
+	_ = dataCommands.AddLoginPassword("name", "login", "pass", "site")
+	_ = dataCommands.AddCard("card", "1111", "12/25", "123", "holder", "bank")
+	_ = dataCommands.AddText("text", "content")
+	_ = dataCommands.AddFile("file", "path")
+	_ = dataCommands.List()
+	_ = dataCommands.Get(uuid.New().String())
+	_ = dataCommands.Delete(uuid.New().String())
+	_ = dataCommands.Sync()
+
+	// Вспомогательные методы
+	_ = dataCommands.checkLocalFileExists(uuid.New())
+}
+
+func TestDataCommands_HelperMethods(_ *testing.T) {
+	cfg := &config.Config{Token: "test-token"}
+	mockManager := &MockDataManager{
+		GetLoginPasswordFunc: func(id string) (*common.LoginPasswordData, error) {
+			return &common.LoginPasswordData{}, nil
+		},
+		GetCardDataFunc: func(id string) (*common.CardData, error) { return &common.CardData{}, nil },
+		GetTextDataFunc: func(id string) (string, error) { return "", nil },
+		GetBinaryDataFunc: func(id string) (string, []byte, error) {
+			return "", nil, nil
+		},
+	}
+	mockClient := &MockGRPCClient{}
+
+	dataCommands := NewDataCommands(cfg, mockManager, mockClient)
+
+	// Test helper methods with empty data
+	conflicts := []common.Conflict{}
+	_ = dataCommands.filterNonConflictData([]common.SecretData{}, conflicts)
+	_ = dataCommands.filterLocalDataForSync([]common.SecretData{}, conflicts)
+	_ = dataCommands.applyConflictResolutions([]common.ConflictResolution{})
+
+	// Test printSecret with different types
+	secretLogin := &common.SecretData{Type: common.LoginPasswordType}
+	_ = dataCommands.printSecret(secretLogin)
+
+	secretCard := &common.SecretData{Type: common.CardDataType}
+	_ = dataCommands.printSecret(secretCard)
+
+	secretText := &common.SecretData{Type: common.TextDataType}
+	_ = dataCommands.printSecret(secretText)
+
+	secretBinary := &common.SecretData{Type: common.BinaryDataType}
+	_ = dataCommands.printSecret(secretBinary)
+
+	secretUnknown := &common.SecretData{Type: "unknown"}
+	_ = dataCommands.printSecret(secretUnknown)
 }
