@@ -329,19 +329,12 @@ func TestAllDataCommandMethods(_ *testing.T) {
 	_ = dataCommands.applyConflictResolutions([]common.ConflictResolution{})
 	_ = dataCommands.filterNonConflictData([]common.SecretData{}, conflicts)
 	_ = dataCommands.filterLocalDataForSync([]common.SecretData{}, conflicts)
-
-	//secret := &common.SecretData{
-	//	ID:   uuid.New(),
-	//	Type: common.LoginPasswordType,
-	//}
-	//_ = dataCommands.printSecret(secret)
 }
 
 func TestDataCommands_AllMethods(_ *testing.T) {
 	cfg := &config.Config{Token: "test-token"}
 
 	mockManager := &MockDataManager{
-		// Все методы возвращают nil/success
 		SaveLoginPasswordFunc: func(name, login, password, site string) error { return nil },
 		SaveCardDataFunc:      func(name, number, expiry, cvv, holder, bank string) error { return nil },
 		SaveTextDataFunc:      func(name, text string) error { return nil },
@@ -366,7 +359,6 @@ func TestDataCommands_AllMethods(_ *testing.T) {
 
 	dataCommands := NewDataCommands(cfg, mockManager, mockClient)
 
-	// Вызываем все публичные методы
 	_ = dataCommands.AddLoginPassword("name", "login", "pass", "site")
 	_ = dataCommands.AddCard("card", "1111", "12/25", "123", "holder", "bank")
 	_ = dataCommands.AddText("text", "content")
@@ -375,8 +367,6 @@ func TestDataCommands_AllMethods(_ *testing.T) {
 	_ = dataCommands.Get(uuid.New().String())
 	_ = dataCommands.Delete(uuid.New().String())
 	_ = dataCommands.Sync()
-
-	// Вспомогательные методы
 	_ = dataCommands.checkLocalFileExists(uuid.New())
 }
 
@@ -396,13 +386,11 @@ func TestDataCommands_HelperMethods(_ *testing.T) {
 
 	dataCommands := NewDataCommands(cfg, mockManager, mockClient)
 
-	// Test helper methods with empty data
 	conflicts := []common.Conflict{}
 	_ = dataCommands.filterNonConflictData([]common.SecretData{}, conflicts)
 	_ = dataCommands.filterLocalDataForSync([]common.SecretData{}, conflicts)
 	_ = dataCommands.applyConflictResolutions([]common.ConflictResolution{})
 
-	// Test printSecret with different types
 	secretLogin := &common.SecretData{Type: common.LoginPasswordType}
 	_ = dataCommands.printSecret(secretLogin)
 

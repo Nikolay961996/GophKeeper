@@ -19,7 +19,6 @@ func TestNewClientCrypto(t *testing.T) {
 func TestEncryptDecryptData(t *testing.T) {
 	crypto := NewClientCrypto("testpassword")
 
-	// Test login/password data
 	loginData := common.LoginPasswordData{
 		Login:    "testuser",
 		Password: "testpass",
@@ -33,7 +32,6 @@ func TestEncryptDecryptData(t *testing.T) {
 	assert.Equal(t, "test login", secret.Metadata)
 	assert.NotEmpty(t, secret.Data)
 
-	// Test decryption
 	var decryptedData common.LoginPasswordData
 	err = crypto.DecryptData(secret, &decryptedData)
 	require.NoError(t, err)
@@ -90,7 +88,6 @@ func TestDecryptWithWrongPassword(t *testing.T) {
 	secret, err := crypto1.EncryptData(common.LoginPasswordType, loginData, "test login")
 	require.NoError(t, err)
 
-	// Try to decrypt with wrong password
 	var decryptedData common.LoginPasswordData
 	err = crypto2.DecryptData(secret, &decryptedData)
 	assert.Error(t, err)
@@ -102,7 +99,6 @@ func TestChangeMasterKey(t *testing.T) {
 
 	crypto := NewClientCrypto(oldPassword)
 
-	// Create some test secrets
 	loginData := common.LoginPasswordData{
 		Login:    "testuser",
 		Password: "testpass",
@@ -113,12 +109,10 @@ func TestChangeMasterKey(t *testing.T) {
 
 	secrets := []*common.SecretData{secret}
 
-	// Change master key
 	reencryptedSecrets, err := crypto.ChangeMasterKey(newPassword, secrets)
 	require.NoError(t, err)
 	assert.Len(t, reencryptedSecrets, 1)
 
-	// Verify data can be decrypted with new password
 	var decryptedData common.LoginPasswordData
 	err = crypto.DecryptData(reencryptedSecrets[0], &decryptedData)
 	require.NoError(t, err)

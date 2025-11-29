@@ -15,7 +15,6 @@ func TestWithAuth(t *testing.T) {
 		Token: "test-token",
 	}
 
-	// Создаем mock клиента
 	client := &GRPCClient{
 		cfg: cfg,
 	}
@@ -23,7 +22,6 @@ func TestWithAuth(t *testing.T) {
 	ctx := context.Background()
 	authCtx := client.withAuth(ctx)
 
-	// Проверяем что контекст содержит метаданные
 	md, ok := metadata.FromOutgoingContext(authCtx)
 	assert.True(t, ok)
 	assert.Contains(t, md["authorization"], "Bearer test-token")
@@ -31,7 +29,7 @@ func TestWithAuth(t *testing.T) {
 
 func TestWithAuth_NoToken(t *testing.T) {
 	cfg := &config.Config{
-		Token: "", // нет токена
+		Token: "",
 	}
 
 	client := &GRPCClient{
@@ -41,16 +39,14 @@ func TestWithAuth_NoToken(t *testing.T) {
 	ctx := context.Background()
 	authCtx := client.withAuth(ctx)
 
-	// Должен вернуть тот же контекст
 	assert.Equal(t, ctx, authCtx)
 }
 
 func TestClose(t *testing.T) {
 	client := &GRPCClient{
-		conn: nil, // nil connection
+		conn: nil,
 	}
 
-	// Close не должен паниковать даже с nil connection
 	err := client.Close()
 	assert.NoError(t, err)
 }

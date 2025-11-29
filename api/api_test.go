@@ -10,9 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// TestAllApiFunctions вызывает все функции API для покрытия
 func TestAllApiFunctions(_ *testing.T) {
-	// ConvertToProto
 	secret := &common.SecretData{
 		ID:        uuid.New(),
 		UserID:    uuid.New(),
@@ -26,7 +24,6 @@ func TestAllApiFunctions(_ *testing.T) {
 	}
 	_ = ConvertToProto(secret)
 
-	// ConvertFromProto с валидными данными
 	protoSecret := &SecretData{
 		Id:        uuid.New().String(),
 		UserId:    uuid.New().String(),
@@ -40,7 +37,6 @@ func TestAllApiFunctions(_ *testing.T) {
 	}
 	_, _ = ConvertFromProto(protoSecret)
 
-	// ConvertFromProto с невалидными UUID
 	protoSecretInvalid := &SecretData{
 		Id:     "invalid-uuid",
 		UserId: uuid.New().String(),
@@ -48,7 +44,6 @@ func TestAllApiFunctions(_ *testing.T) {
 	}
 	_, _ = ConvertFromProto(protoSecretInvalid)
 
-	// ConvertUserToProto
 	user := &common.User{
 		ID:        uuid.New(),
 		Login:     "testuser",
@@ -56,7 +51,6 @@ func TestAllApiFunctions(_ *testing.T) {
 	}
 	_ = ConvertUserToProto(user)
 
-	// Timestamp functions
 	_ = TimestampToTime(nil)
 	_ = TimestampToTime(timestamppb.New(time.Now()))
 	_ = TimeToTimestamp(time.Time{})

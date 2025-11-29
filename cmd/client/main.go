@@ -1,8 +1,3 @@
-/*
-linter
-tests
-*/
-
 package main
 
 import (

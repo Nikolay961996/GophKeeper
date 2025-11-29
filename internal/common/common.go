@@ -337,7 +337,7 @@ func (cm *ConflictManager) DetectConflicts(localSecrets, remoteSecrets []SecretD
 				ID:           fmt.Sprintf("%s_deleted", id),
 				SecretID:     id,
 				Type:         ConflictDeleted,
-				LocalSecret:  nil, // Локально удалено
+				LocalSecret:  nil,
 				RemoteSecret: &remote,
 				Reason:       "Locally deleted but modified on server",
 				DetectedAt:   Now(),
@@ -374,7 +374,6 @@ func (cm *ConflictManager) ResolveConflict(conflictID string, action string) (*C
 			winner = conflict.RemoteSecret
 		}
 	case "cancel":
-		// Отмена - не сохранять ничего
 		winner = nil
 	default:
 		return nil, fmt.Errorf("unknown action: %s", action)
@@ -387,7 +386,6 @@ func (cm *ConflictManager) ResolveConflict(conflictID string, action string) (*C
 		ResolvedAt: Now(),
 	}
 
-	// Удаляем из pending
 	delete(cm.pendingConflicts, conflictID)
 
 	return resolution, nil

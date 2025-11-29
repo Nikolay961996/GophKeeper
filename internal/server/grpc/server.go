@@ -40,7 +40,6 @@ func NewGRPCServer(storage storage.Storage, jwtSecret string) *GRPCServer {
 
 // Start запускает gRPC сервер
 func (s *GRPCServer) Start(addr string) error {
-	// Создаем gRPC сервер с интерцептором аутентификации
 	s.grpcServer = grpc.NewServer(
 		grpc.StreamInterceptor(s.streamAuthInterceptor),
 		grpc.UnaryInterceptor(s.unaryAuthInterceptor),
@@ -182,7 +181,6 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 		return common.CreateErrorResponse(fmt.Errorf("invalid sync data")), nil
 	}
 
-	// Получаем ВСЕ секреты пользователя, а не только измененные
 	serverSecretsPtr, err := s.storage.GetUserSecrets(userID)
 	if err != nil {
 		return common.CreateErrorResponse(fmt.Errorf("error getting secrets")), nil
@@ -193,7 +191,6 @@ func (s *GRPCServer) handleSync(userID uuid.UUID, payload []byte) (*common.Opera
 		serverSecrets[i] = *secretPtr
 	}
 
-	// Обрабатываем клиентские данные и собираем конфликты
 	var conflicts []common.SecretData
 	for _, clientSecret := range syncOp.Data {
 		existingSecret, _ := s.getSecretByID(userID, clientSecret.ID)
@@ -251,7 +248,6 @@ func (s *GRPCServer) UploadFile(stream api.GophKeeper_UploadFileServer) error {
 		return status.Error(codes.Unauthenticated, "invalid user ID")
 	}
 
-	// Проверяем, поддерживает ли хранилище работу с файлами
 	fileChecker, ok := s.storage.(storage.FileStorageChecker)
 	if !ok || !fileChecker.SupportsFiles() {
 		return status.Error(codes.Unimplemented, "file storage not supported")
@@ -346,7 +342,6 @@ func (s *GRPCServer) DownloadFile(req *api.DownloadRequest, stream api.GophKeepe
 		return status.Error(codes.InvalidArgument, "invalid file ID")
 	}
 
-	// Проверяем, поддерживает ли хранилище работу с файлами
 	fileChecker, ok := s.storage.(storage.FileStorageChecker)
 	if !ok || !fileChecker.SupportsFiles() {
 		return status.Error(codes.Unimplemented, "file storage not supported")
@@ -357,18 +352,15 @@ func (s *GRPCServer) DownloadFile(req *api.DownloadRequest, stream api.GophKeepe
 		return status.Error(codes.Unimplemented, "file storage not supported")
 	}
 
-	// Получаем метаданные файла
 	fileMetadata, err := fileStorage.GetFileMetadata(fileID)
 	if err != nil {
 		return status.Error(codes.NotFound, "file not found")
 	}
 
-	// Проверяем права доступа
 	if fileMetadata.UserID != userID {
 		return status.Error(codes.PermissionDenied, "access denied")
 	}
 
-	// Получаем все чанки файла
 	chunks, err := fileStorage.GetAllFileChunks(fileID)
 	if err != nil {
 		return status.Error(codes.Internal, fmt.Sprintf("failed to get file chunks: %v", err))
@@ -376,7 +368,6 @@ func (s *GRPCServer) DownloadFile(req *api.DownloadRequest, stream api.GophKeepe
 
 	log.Printf("DownloadFile - sending %d chunks for file %s", len(chunks), fileMetadata.FileName)
 
-	// Отправляем чанки
 	for _, chunk := range chunks {
 		apiChunk := &api.FileChunk{
 			FileId:      fileMetadata.ID.String(),

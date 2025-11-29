@@ -22,12 +22,10 @@ func TestNow(t *testing.T) {
 func TestParseUUID(t *testing.T) {
 	testUUID := uuid.New()
 
-	// Valid UUID
 	parsed, err := ParseUUID(testUUID.String())
 	assert.NoError(t, err)
 	assert.Equal(t, testUUID, parsed)
 
-	// Invalid UUID
 	_, err = ParseUUID("invalid-uuid")
 	assert.Error(t, err)
 }
@@ -35,11 +33,9 @@ func TestParseUUID(t *testing.T) {
 func TestMustParseUUID(t *testing.T) {
 	testUUID := uuid.New()
 
-	// Valid UUID
 	parsed := MustParseUUID(testUUID.String())
 	assert.Equal(t, testUUID, parsed)
 
-	// Should panic on invalid UUID
 	assert.Panics(t, func() {
 		MustParseUUID("invalid-uuid")
 	})
@@ -53,10 +49,8 @@ func TestHashPasswordAndCheckPasswordHash(t *testing.T) {
 	assert.NotEmpty(t, hash)
 	assert.NotEqual(t, password, hash)
 
-	// Valid password
 	assert.True(t, CheckPasswordHash(password, hash))
 
-	// Invalid password
 	assert.False(t, CheckPasswordHash("wrongpassword", hash))
 }
 
@@ -72,23 +66,19 @@ func TestEncryptDecryptData(t *testing.T) {
 	key := GenerateEncryptionKey("testpassword")
 	originalData := []byte("sensitive data to encrypt")
 
-	// Test encryption
 	encrypted, err := EncryptData(originalData, key)
 	require.NoError(t, err)
 	assert.NotNil(t, encrypted)
 	assert.NotEqual(t, originalData, encrypted)
 
-	// Test decryption
 	decrypted, err := DecryptData(encrypted, key)
 	require.NoError(t, err)
 	assert.Equal(t, originalData, decrypted)
 
-	// Test decryption with wrong key
 	wrongKey := GenerateEncryptionKey("wrongpassword")
 	_, err = DecryptData(encrypted, wrongKey)
 	assert.Error(t, err)
 
-	// Test decryption with corrupted data
 	_, err = DecryptData([]byte("tooshort"), key)
 	assert.Error(t, err)
 }
@@ -104,22 +94,18 @@ func TestJWTTokenGenerationAndValidation(t *testing.T) {
 	login := "testuser"
 	secret := "test-secret-key"
 
-	// Generate token
 	token, err := GenerateJWTToken(userID, login, secret, time.Hour)
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
 
-	// Validate token
 	claims, err := ValidateJWTToken(token, secret)
 	require.NoError(t, err)
 	assert.Equal(t, userID, claims.UserID)
 	assert.Equal(t, login, claims.Login)
 
-	// Invalid token
 	_, err = ValidateJWTToken("invalid.token", secret)
 	assert.Error(t, err)
 
-	// Wrong secret
 	_, err = ValidateJWTToken(token, "wrong-secret")
 	assert.Error(t, err)
 }
@@ -151,27 +137,27 @@ func TestConflictManager(t *testing.T) {
 		DetectedAt: Now(),
 	}
 
-	// Test adding conflict
+	// adding conflict
 	cm.AddConflict(conflict)
 	assert.True(t, cm.HasConflictForSecret(secretID))
 	assert.True(t, cm.HasPendingConflicts())
 
-	// Test getting pending conflicts
+	// getting pending conflicts
 	conflicts := cm.GetPendingConflicts()
 	assert.Len(t, conflicts, 1)
 	assert.Equal(t, "test-conflict", conflicts[0].ID)
 
-	// Test getting conflict by secret ID
+	// getting conflict by secret ID
 	foundConflict := cm.GetConflictBySecretID(secretID)
 	assert.NotNil(t, foundConflict)
 	assert.Equal(t, conflict.ID, foundConflict.ID)
 
-	// Test resolving conflict
+	// resolving conflict
 	resolution, err := cm.ResolveConflict("test-conflict", "keep_local")
 	require.NoError(t, err)
 	assert.Equal(t, "keep_local", resolution.Action)
 
-	// Test conflict removal
+	// conflict removal
 	cm.RemoveConflict("test-conflict")
 	assert.False(t, cm.HasConflictForSecret(secretID))
 	assert.False(t, cm.HasPendingConflicts())
@@ -236,20 +222,20 @@ func TestOperationMarshaling(t *testing.T) {
 	assert.Equal(t, OpRegister, req.Type)
 	assert.NotEmpty(t, req.Payload)
 
-	// Test unmarshaling
+	// unmarshaling
 	var unmarshaledOp RegisterOp
 	err = UnmarshalOperation(req.Payload, &unmarshaledOp)
 	require.NoError(t, err)
 	assert.Equal(t, op.Login, unmarshaledOp.Login)
 	assert.Equal(t, op.Password, unmarshaledOp.Password)
 
-	// Test success response
+	// success response
 	successResp, err := CreateSuccessResponse(op)
 	require.NoError(t, err)
 	assert.True(t, successResp.Success)
 	assert.NotEmpty(t, successResp.Payload)
 
-	// Test error response
+	// error response
 	testErr := fmt.Errorf("test error")
 	errorResp := CreateErrorResponse(testErr)
 	assert.False(t, errorResp.Success)

@@ -48,12 +48,10 @@ func NewPostgresStorage(connString string) (*PostgresStorage, error) {
 		return nil, fmt.Errorf("failed to connect to database: %v", err)
 	}
 
-	// Проверяем соединение
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %v", err)
 	}
 
-	// Настраиваем пул соединений
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(5 * time.Minute)
@@ -76,7 +74,6 @@ func (s *PostgresStorage) Close() error {
 
 // InitFileTables инициализирует таблицы для файлов
 func initFileTables(db *sql.DB) error {
-	// Таблица для метаданных файлов
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS file_metadata (
 			id UUID PRIMARY KEY,
@@ -95,7 +92,6 @@ func initFileTables(db *sql.DB) error {
 		return fmt.Errorf("failed to create file_metadata table: %v", err)
 	}
 
-	// Таблица для чанков файлов
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS file_chunks (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,7 +107,6 @@ func initFileTables(db *sql.DB) error {
 		return fmt.Errorf("failed to create file_chunks table: %v", err)
 	}
 
-	// Добавляем колонку file_id в secrets если её нет
 	_, err = db.Exec(`
 		DO $$ 
 		BEGIN 
@@ -140,7 +135,6 @@ func initFileTables(db *sql.DB) error {
 
 // Update initTables to include file tables
 func initTables(db *sql.DB) error {
-	// Существующий код для users и secrets...
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS users (
 			id UUID PRIMARY KEY,
@@ -171,12 +165,10 @@ func initTables(db *sql.DB) error {
 		return fmt.Errorf("failed to create secrets table: %v", err)
 	}
 
-	// Инициализируем таблицы для файлов
 	if err = initFileTables(db); err != nil {
 		return err
 	}
 
-	// Существующие индексы...
 	_, err = db.Exec(`
 		CREATE INDEX IF NOT EXISTS idx_secrets_user_id ON secrets(user_id);
 		CREATE INDEX IF NOT EXISTS idx_secrets_updated_at ON secrets(updated_at);
@@ -388,14 +380,11 @@ func (s *PostgresStorage) GetUserFiles(userID uuid.UUID) ([]*FileMetadata, error
 
 // DeleteFile удаляет файл и все его чанки
 func (s *PostgresStorage) DeleteFile(fileID uuid.UUID) error {
-	// Удаляем чанки (каскадно удалится из-за ON DELETE CASCADE)
-	// Но лучше явно удалить для ясности
 	_, err := s.db.Exec("DELETE FROM file_chunks WHERE file_id = $1", fileID)
 	if err != nil {
 		return fmt.Errorf("failed to delete file chunks: %v", err)
 	}
 
-	// Удаляем метаданные
 	result, err := s.db.Exec("DELETE FROM file_metadata WHERE id = $1", fileID)
 	if err != nil {
 		return fmt.Errorf("failed to delete file metadata: %v", err)
@@ -415,11 +404,8 @@ func (s *PostgresStorage) DeleteFile(fileID uuid.UUID) error {
 
 // SaveSecretData для поддержки file_id
 func (s *PostgresStorage) SaveSecretData(data *common.SecretData) error {
-	// Проверяем, есть ли file_id в данных
 	var fileID *uuid.UUID
 	if data.Type == common.BinaryDataType {
-		// Для бинарных данных может быть ссылка на файл
-		// В метаданных может храниться file_id
 		var meta struct {
 			FileID string `json:"file_id,omitempty"`
 		}
@@ -430,7 +416,6 @@ func (s *PostgresStorage) SaveSecretData(data *common.SecretData) error {
 		}
 	}
 
-	// Сначала проверяем, существует ли уже запись
 	var existingVersion int
 	var existingFileID *uuid.UUID
 	checkQuery := `SELECT version, file_id FROM secrets WHERE id = $1 AND user_id = $2`
@@ -441,7 +426,6 @@ func (s *PostgresStorage) SaveSecretData(data *common.SecretData) error {
 	}
 
 	if err == sql.ErrNoRows {
-		// Новая запись
 		query := `
 			INSERT INTO secrets (id, user_id, type, name, data, metadata, version, created_at, updated_at, file_id)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -460,7 +444,6 @@ func (s *PostgresStorage) SaveSecretData(data *common.SecretData) error {
 			fileID,
 		)
 	} else {
-		// Обновление существующей записи
 		query := `
 			UPDATE secrets 
 			SET type = $1, name = $2, data = $3, metadata = $4, version = $5, updated_at = $6, file_id = $7
@@ -660,7 +643,6 @@ func (s *PostgresStorage) GetSecretsSince(userID uuid.UUID, since time.Time) ([]
 
 // DeleteSecret удаляет секрет
 func (s *PostgresStorage) DeleteSecret(userID, secretID uuid.UUID) error {
-	// Сначала проверяем тип секрета, если это файл - удаляем его данные
 	var secretType string
 	var fileID *uuid.UUID
 
@@ -673,11 +655,9 @@ func (s *PostgresStorage) DeleteSecret(userID, secretID uuid.UUID) error {
 		return fmt.Errorf("failed to check secret type: %v", err)
 	}
 
-	// Если это бинарные данные с привязанным файлом - удаляем файл
 	if secretType == string(common.BinaryDataType) && fileID != nil {
 		if err = s.DeleteFile(*fileID); err != nil {
 			log.Printf("Warning: failed to delete file %s: %v", fileID, err)
-			// Продолжаем удаление секрета даже если файл не удалился
 		}
 	}
 

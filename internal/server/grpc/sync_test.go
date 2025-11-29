@@ -22,7 +22,6 @@ func TestGRPCServer_Sync_WithAuth(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	server := NewGRPCServer(storage, "test-secret")
 
-	// Create test user
 	user := &common.User{
 		ID:           uuid.New(),
 		Login:        "testuser",
@@ -32,11 +31,9 @@ func TestGRPCServer_Sync_WithAuth(t *testing.T) {
 	err := storage.CreateUser(user)
 	require.NoError(t, err)
 
-	// Generate token
 	token, err := common.GenerateJWTToken(user.ID, user.Login, "test-secret", time.Hour)
 	require.NoError(t, err)
 
-	// Start server
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
@@ -56,7 +53,6 @@ func TestGRPCServer_Sync_WithAuth(t *testing.T) {
 
 	client := api.NewGophKeeperClient(conn)
 
-	// Prepare sync operation
 	syncOp := common.SyncOp{
 		LastSync: common.Now().Add(-time.Hour),
 		Data:     []common.SecretData{},
@@ -68,12 +64,10 @@ func TestGRPCServer_Sync_WithAuth(t *testing.T) {
 	syncPayload, err := common.MarshalOperation(syncReq)
 	require.NoError(t, err)
 
-	// Create context with authentication
 	ctx := context.Background()
 	md := metadata.New(map[string]string{"authorization": "Bearer " + token})
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	// Execute sync with auth
 	syncResp, err := client.Execute(ctx, &api.CommandRequest{
 		Payload: syncPayload,
 	})
@@ -85,7 +79,6 @@ func TestGRPCServer_Sync_WithoutAuth(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	server := NewGRPCServer(storage, "test-secret")
 
-	// Start server
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
@@ -105,7 +98,6 @@ func TestGRPCServer_Sync_WithoutAuth(t *testing.T) {
 
 	client := api.NewGophKeeperClient(conn)
 
-	// Prepare sync operation
 	syncOp := common.SyncOp{
 		LastSync: common.Now().Add(-time.Hour),
 		Data:     []common.SecretData{},
@@ -117,7 +109,6 @@ func TestGRPCServer_Sync_WithoutAuth(t *testing.T) {
 	syncPayload, err := common.MarshalOperation(syncReq)
 	require.NoError(t, err)
 
-	// Execute sync without auth (should fail)
 	syncResp, err := client.Execute(context.Background(), &api.CommandRequest{
 		Payload: syncPayload,
 	})

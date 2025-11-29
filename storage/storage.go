@@ -10,12 +10,10 @@ import (
 
 // Storage интерфейс определяет основные методы для работы с хранилищем
 type Storage interface {
-	// User methods
 	CreateUser(user *common.User) error
 	GetUserByLogin(login string) (*common.User, error)
 	GetUserByID(id uuid.UUID) (*common.User, error)
 
-	// Secret data methods
 	SaveSecretData(data *common.SecretData) error
 	GetUserSecrets(userID uuid.UUID) ([]*common.SecretData, error)
 	GetSecretsSince(userID uuid.UUID, since time.Time) ([]*common.SecretData, error)
@@ -24,7 +22,6 @@ type Storage interface {
 
 // FileStorage интерфейс определяет методы для работы с файлами (опционально)
 type FileStorage interface {
-	// File methods
 	CreateFileMetadata(metadata *FileMetadata) error
 	SaveFileChunk(chunk *FileChunk) error
 	GetFileMetadata(fileID uuid.UUID) (*FileMetadata, error)
@@ -54,7 +51,6 @@ func (e *StorageError) Error() string {
 	return e.msg
 }
 
-// Predefined storage errors
 var (
 	ErrUserNotFound   = &StorageError{"user not found"}
 	ErrSecretNotFound = &StorageError{"secret not found"}

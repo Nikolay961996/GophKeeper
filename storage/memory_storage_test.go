@@ -23,7 +23,6 @@ func TestMemoryStorage_CreateUser(t *testing.T) {
 	err := storage.CreateUser(user)
 	require.NoError(t, err)
 
-	// Test duplicate user
 	err = storage.CreateUser(user)
 	assert.Error(t, err)
 }
@@ -40,13 +39,11 @@ func TestMemoryStorage_GetUserByLogin(t *testing.T) {
 	err := storage.CreateUser(user)
 	require.NoError(t, err)
 
-	// Test existing user
 	foundUser, err := storage.GetUserByLogin("testuser")
 	require.NoError(t, err)
 	assert.Equal(t, user.ID, foundUser.ID)
 	assert.Equal(t, user.Login, foundUser.Login)
 
-	// Test non-existing user
 	_, err = storage.GetUserByLogin("nonexistent")
 	assert.Error(t, err)
 	assert.Equal(t, ErrUserNotFound, err)
@@ -64,12 +61,10 @@ func TestMemoryStorage_GetUserByID(t *testing.T) {
 	err := storage.CreateUser(user)
 	require.NoError(t, err)
 
-	// Test existing user
 	foundUser, err := storage.GetUserByID(user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, user.ID, foundUser.ID)
 
-	// Test non-existing user
 	_, err = storage.GetUserByID(uuid.New())
 	assert.Error(t, err)
 	assert.Equal(t, ErrUserNotFound, err)
@@ -99,23 +94,19 @@ func TestMemoryStorage_SaveAndGetSecretData(t *testing.T) {
 		UpdatedAt: common.Now(),
 	}
 
-	// Save secret
 	err = storage.SaveSecretData(secret)
 	require.NoError(t, err)
 
-	// Get user secrets
 	secrets, err := storage.GetUserSecrets(user.ID)
 	require.NoError(t, err)
 	assert.Len(t, secrets, 1)
 	assert.Equal(t, secret.ID, secrets[0].ID)
 
-	// Update secret
 	secret.Version = 2
 	secret.UpdatedAt = common.Now()
 	err = storage.SaveSecretData(secret)
 	require.NoError(t, err)
 
-	// Verify update
 	secrets, err = storage.GetUserSecrets(user.ID)
 	require.NoError(t, err)
 	assert.Len(t, secrets, 1)
@@ -136,7 +127,6 @@ func TestMemoryStorage_GetSecretsSince(t *testing.T) {
 
 	baseTime := common.Now()
 
-	// Create secret before base time
 	oldSecret := &common.SecretData{
 		ID:        uuid.New(),
 		UserID:    user.ID,
@@ -145,7 +135,6 @@ func TestMemoryStorage_GetSecretsSince(t *testing.T) {
 		UpdatedAt: baseTime.Add(-2 * time.Hour),
 	}
 
-	// Create secret after base time
 	newSecret := &common.SecretData{
 		ID:        uuid.New(),
 		UserID:    user.ID,
@@ -159,7 +148,6 @@ func TestMemoryStorage_GetSecretsSince(t *testing.T) {
 	err = storage.SaveSecretData(newSecret)
 	require.NoError(t, err)
 
-	// Get secrets since base time
 	secrets, err := storage.GetSecretsSince(user.ID, baseTime)
 	require.NoError(t, err)
 	assert.Len(t, secrets, 1)
@@ -189,16 +177,13 @@ func TestMemoryStorage_DeleteSecret(t *testing.T) {
 	err = storage.SaveSecretData(secret)
 	require.NoError(t, err)
 
-	// Delete secret
 	err = storage.DeleteSecret(user.ID, secret.ID)
 	require.NoError(t, err)
 
-	// Verify deletion
 	secrets, err := storage.GetUserSecrets(user.ID)
 	require.NoError(t, err)
 	assert.Len(t, secrets, 0)
 
-	// Delete non-existing secret
 	err = storage.DeleteSecret(user.ID, uuid.New())
 	assert.Error(t, err)
 }
@@ -208,7 +193,6 @@ func TestMemoryStorage_FileMethodsNotSupported(t *testing.T) {
 
 	assert.False(t, storage.SupportsFiles())
 
-	// Test all file methods return errors
 	err := storage.CreateFileMetadata(&FileMetadata{})
 	assert.Error(t, err)
 
@@ -241,7 +225,6 @@ func TestAllStorageMethods(_ *testing.T) {
 	}
 	_ = storage.CreateUser(user)
 
-	// Вызываем все методы
 	_, _ = storage.GetUserByLogin("testuser")
 	_, _ = storage.GetUserByID(user.ID)
 
@@ -258,7 +241,6 @@ func TestAllStorageMethods(_ *testing.T) {
 	_, _ = storage.GetSecretsSince(user.ID, common.Now().Add(-time.Hour))
 	_ = storage.DeleteSecret(user.ID, secret.ID)
 
-	// File methods (все вернут ошибки, но покрытие)
 	_ = storage.SupportsFiles()
 	_ = storage.CreateFileMetadata(&FileMetadata{})
 	_ = storage.SaveFileChunk(&FileChunk{})

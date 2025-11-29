@@ -92,22 +92,18 @@ func TestConvertUserToProto(t *testing.T) {
 func TestTimestampConversions(t *testing.T) {
 	testTime := time.Now()
 
-	// Time to Timestamp
 	timestamp := TimeToTimestamp(testTime)
 	assert.True(t, timestamp.IsValid())
 	assert.True(t, timestamp.AsTime().Equal(testTime))
 
-	// Timestamp to Time
 	convertedTime := TimestampToTime(timestamp)
 	assert.True(t, convertedTime.Equal(testTime))
 
-	// Nil timestamp
 	nilTime := TimestampToTime(nil)
 	assert.True(t, nilTime.IsZero())
 }
 
 func TestConvertFromProto_InvalidData(t *testing.T) {
-	// Test with empty ID
 	protoSecret := &SecretData{
 		Id:     "",
 		UserId: uuid.New().String(),
@@ -117,7 +113,6 @@ func TestConvertFromProto_InvalidData(t *testing.T) {
 	_, err := ConvertFromProto(protoSecret)
 	assert.Error(t, err)
 
-	// Test with empty UserID
 	protoSecret2 := &SecretData{
 		Id:     uuid.New().String(),
 		UserId: "",
@@ -139,7 +134,6 @@ func TestTimeToTimestamp_ZeroTime(t *testing.T) {
 }
 
 func TestAllFunctions(_ *testing.T) {
-	// ConvertToProto
 	secret := &common.SecretData{
 		ID:       uuid.New(),
 		UserID:   uuid.New(),
@@ -151,7 +145,6 @@ func TestAllFunctions(_ *testing.T) {
 	}
 	_ = ConvertToProto(secret)
 
-	// ConvertFromProto
 	protoSecret := &SecretData{
 		Id:       uuid.New().String(),
 		UserId:   uuid.New().String(),
@@ -163,14 +156,12 @@ func TestAllFunctions(_ *testing.T) {
 	}
 	_, _ = ConvertFromProto(protoSecret)
 
-	// ConvertUserToProto
 	user := &common.User{
 		ID:    uuid.New(),
 		Login: "login",
 	}
 	_ = ConvertUserToProto(user)
 
-	// Timestamp functions
 	_ = TimestampToTime(nil)
 	_ = TimeToTimestamp(common.Now())
 }
@@ -196,15 +187,12 @@ func TestConvertFromProto_EdgeCases(t *testing.T) {
 }
 
 func TestTimestampFunctions(t *testing.T) {
-	// Nil timestamp
 	result := TimestampToTime(nil)
 	assert.True(t, result.IsZero())
 
-	// Zero time
 	timestamp := TimeToTimestamp(time.Time{})
 	assert.NotNil(t, timestamp)
 
-	// Valid time
 	now := time.Now()
 	timestamp = TimeToTimestamp(now)
 	assert.True(t, timestamp.IsValid())

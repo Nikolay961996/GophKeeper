@@ -28,7 +28,6 @@ func TestGetSecretByID(t *testing.T) {
 	userID := common.MustParseUUID("12345678-1234-1234-1234-123456789012")
 	secretID := common.MustParseUUID("12345678-1234-1234-1234-123456789013")
 
-	// Secret not found
 	secret, err := server.getSecretByID(userID, secretID)
 	assert.Error(t, err)
 	assert.Nil(t, secret)

@@ -11,7 +11,6 @@ import (
 
 // TestPostgresStorageInterfaces проверяет что PostgresStorage реализует все интерфейсы
 func TestPostgresStorageInterfaces(t *testing.T) {
-	// Просто проверяем что типы совместимы (компиляция)
 	var storage Storage = (*PostgresStorage)(nil)
 	var fileStorage FileStorage = (*PostgresStorage)(nil)
 	var fileChecker FileStorageChecker = (*PostgresStorage)(nil)
@@ -23,13 +22,8 @@ func TestPostgresStorageInterfaces(t *testing.T) {
 
 // TestPostgresStorageMethods проверяет только что методы объявлены (без вызова)
 func TestPostgresStorageMethods(t *testing.T) {
-	// Не создаем экземпляр, просто проверяем что методы существуют в типе
 	var storage *PostgresStorage
 
-	// Эта проверка только на уровне компиляции
-	// Мы не вызываем методы, чтобы избежать паники
-
-	// Проверяем что тип реализует интерфейсы
 	assert.Implements(t, (*Storage)(nil), storage)
 	assert.Implements(t, (*FileStorage)(nil), storage)
 	assert.Implements(t, (*FileStorageChecker)(nil), storage)
@@ -75,10 +69,8 @@ func TestFileChunkStruct(t *testing.T) {
 
 // TestPostgresStorageSupportsFiles проверяет метод SupportsFiles
 func TestPostgresStorageSupportsFiles(t *testing.T) {
-	// Создаем минимальный storage только для проверки SupportsFiles
 	storage := &PostgresStorage{}
 
-	// Этот метод не требует базы данных
 	result := storage.SupportsFiles()
 	assert.True(t, result)
 }
@@ -88,7 +80,6 @@ func TestStorageError(t *testing.T) {
 	err := &StorageError{msg: "test error message"}
 	assert.Equal(t, "test error message", err.Error())
 
-	// Проверяем предопределенные ошибки
 	assert.Equal(t, "user not found", ErrUserNotFound.Error())
 	assert.Equal(t, "secret not found", ErrSecretNotFound.Error())
 	assert.Equal(t, "file not found", ErrFileNotFound.Error())
@@ -100,15 +91,12 @@ func TestPostgresStorageClose(t *testing.T) {
 	err := storage.Close()
 	assert.NoError(t, err)
 
-	// Storage с не-nil db (но мы не будем его реально закрывать)
 	storage2 := &PostgresStorage{}
-	err = storage2.Close()
-	// Не проверяем ошибку, так как db может быть nil
+	_ = storage2.Close()
 }
 
 // TestNewPostgresStorage_InvalidConnString проверяет создание с невалидной строкой подключения
 func TestNewPostgresStorage_InvalidConnString(t *testing.T) {
-	// Этот тест может быть запущен без реальной БД
 	storage, err := NewPostgresStorage("invalid_connection_string")
 	assert.Error(t, err)
 	assert.Nil(t, storage)

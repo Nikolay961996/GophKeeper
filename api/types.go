@@ -14,7 +14,7 @@ func ConvertToProto(secret *common.SecretData) *SecretData {
 		Id:        secret.ID.String(),
 		UserId:    secret.UserID.String(),
 		Type:      string(secret.Type),
-		Name:      secret.Metadata, // Используем Metadata как Name
+		Name:      secret.Metadata,
 		Data:      secret.Data,
 		Metadata:  secret.Metadata,
 		Version:   int32(secret.Version),

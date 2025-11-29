@@ -24,12 +24,10 @@ func TestGRPCServer_Authentication(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	server := NewGRPCServer(storage, "test-secret")
 
-	// Create test user and generate token
 	userID := uuid.New()
 	token, err := common.GenerateJWTToken(userID, "testuser", "test-secret", time.Hour)
 	require.NoError(t, err)
 
-	// Test authentication - используем IncomingContext
 	ctx := context.Background()
 	md := metadata.New(map[string]string{"authorization": "Bearer " + token})
 	ctx = metadata.NewIncomingContext(ctx, md) // Изменено на IncomingContext
@@ -50,7 +48,6 @@ func TestGRPCServer_Authentication_InvalidToken(t *testing.T) {
 	_, err := server.authenticate(ctx)
 	assert.Error(t, err)
 
-	// Проверяем, что это именно ошибка аутентификации
 	grpcStatus, ok := status.FromError(err)
 	assert.True(t, ok)
 	assert.Equal(t, codes.Unauthenticated, grpcStatus.Code())
@@ -61,7 +58,7 @@ func TestGRPCServer_Authentication_MissingToken(t *testing.T) {
 	server := NewGRPCServer(storage, "test-secret")
 
 	ctx := context.Background()
-	md := metadata.New(map[string]string{}) // Пустые метаданные
+	md := metadata.New(map[string]string{})
 	ctx = metadata.NewIncomingContext(ctx, md)
 
 	_, err := server.authenticate(ctx)
@@ -76,7 +73,6 @@ func TestGRPCServer_Authentication_MissingMetadata(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	server := NewGRPCServer(storage, "test-secret")
 
-	// Контекст без метаданных
 	ctx := context.Background()
 
 	_, err := server.authenticate(ctx)
@@ -95,7 +91,6 @@ func TestGRPCServer_Authentication_BearerPrefix(t *testing.T) {
 	token, err := common.GenerateJWTToken(userID, "testuser", "test-secret", time.Hour)
 	require.NoError(t, err)
 
-	// Test with Bearer prefix
 	ctx := context.Background()
 	md := metadata.New(map[string]string{"authorization": "Bearer " + token})
 	ctx = metadata.NewIncomingContext(ctx, md)
@@ -104,7 +99,6 @@ func TestGRPCServer_Authentication_BearerPrefix(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, userID, authenticatedUserID)
 
-	// Test without Bearer prefix
 	ctx2 := context.Background()
 	md2 := metadata.New(map[string]string{"authorization": token})
 	ctx2 = metadata.NewIncomingContext(ctx2, md2)
@@ -114,12 +108,11 @@ func TestGRPCServer_Authentication_BearerPrefix(t *testing.T) {
 	assert.Equal(t, userID, authenticatedUserID2)
 }
 
-// Более полный интеграционный тест с реальным gRPC сервером
+// интеграционный тест с реальным gRPC сервером
 func TestGRPCServer_RegisterAndLogin_Integration(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	server := NewGRPCServer(storage, "test-secret")
 
-	// Start test server
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
@@ -131,14 +124,12 @@ func TestGRPCServer_RegisterAndLogin_Integration(t *testing.T) {
 	}()
 	defer grpcServer.GracefulStop()
 
-	// Connect client
 	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 
 	client := api.NewGophKeeperClient(conn)
 
-	// Test registration
 	registerOp := common.RegisterOp{
 		Login:    "testuser",
 		Password: "testpassword",
@@ -157,7 +148,6 @@ func TestGRPCServer_RegisterAndLogin_Integration(t *testing.T) {
 	assert.True(t, registerResp.Success)
 	assert.Empty(t, registerResp.Error)
 
-	// Test login with correct credentials
 	loginOp := common.LoginOp{
 		Login:    "testuser",
 		Password: "testpassword",
@@ -176,7 +166,6 @@ func TestGRPCServer_RegisterAndLogin_Integration(t *testing.T) {
 	assert.True(t, loginResp.Success)
 	assert.Empty(t, loginResp.Error)
 
-	// Test login with wrong credentials
 	wrongLoginOp := common.LoginOp{
 		Login:    "testuser",
 		Password: "wrongpassword",
@@ -201,17 +190,15 @@ func TestGRPCServer_RegisterExistingUser(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	server := NewGRPCServer(storage, "test-secret")
 
-	// Сначала создаем пользователя
 	user := &common.User{
 		ID:           uuid.New(),
 		Login:        "existinguser",
-		PasswordHash: "hashedpassword", // В реальности здесь будет хеш
+		PasswordHash: "hashedpassword",
 		CreatedAt:    common.Now(),
 	}
 	err := storage.CreateUser(user)
 	require.NoError(t, err)
 
-	// Пытаемся зарегистрировать того же пользователя
 	registerOp := common.RegisterOp{
 		Login:    "existinguser",
 		Password: "password",
@@ -223,7 +210,6 @@ func TestGRPCServer_RegisterExistingUser(t *testing.T) {
 	registerPayload, err := common.MarshalOperation(registerReq)
 	require.NoError(t, err)
 
-	// Запускаем сервер для теста
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
@@ -271,7 +257,6 @@ func TestGRPCServer_InvalidOperation(t *testing.T) {
 
 	client := api.NewGophKeeperClient(conn)
 
-	// Отправляем невалидные данные
 	invalidResp, err := client.Execute(context.Background(), &api.CommandRequest{
 		Payload: []byte("invalid json data"),
 	})
@@ -279,7 +264,6 @@ func TestGRPCServer_InvalidOperation(t *testing.T) {
 	assert.False(t, invalidResp.Success)
 	assert.NotEmpty(t, invalidResp.Error)
 
-	// Отправляем неизвестную операцию
 	unknownOp := common.OperationRequest{
 		Type: "unknown_operation",
 	}
@@ -298,35 +282,23 @@ func TestAllServerMethods(_ *testing.T) {
 	storage := storage.NewMemoryStorage()
 	server := NewGRPCServer(storage, "test-secret")
 
-	// Execute с разными операциями
 	req := &api.CommandRequest{
 		Payload: []byte("invalid"),
 	}
 	_, _ = server.Execute(context.Background(), req)
-
-	// Handle методы напрямую
 	_, _ = server.handleRegister([]byte("invalid"))
 	_, _ = server.handleLogin([]byte("invalid"))
-
 	userID := uuid.New()
 	_, _ = server.handleSync(userID, []byte("invalid"))
-
-	// Authenticate с разными случаями
 	ctx := context.Background()
 	_, _ = server.authenticate(ctx)
-
 	ctxWithMD := metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
 	_, _ = server.authenticate(ctxWithMD)
-
 	ctxWithToken := metadata.NewIncomingContext(ctx, metadata.New(map[string]string{
 		"authorization": "Bearer invalid",
 	}))
 	_, _ = server.authenticate(ctxWithToken)
-
-	// Get secret
 	_, _ = server.getSecretByID(userID, uuid.New())
-
-	// Create error response
 	_, _ = server.createErrorResponse(codes.Internal, "error")
 }
 
@@ -340,7 +312,6 @@ func TestGRPCServer_ErrorHandling(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	server := NewGRPCServer(storage, "test-secret")
 
-	// Test createErrorResponse
 	resp, err := server.createErrorResponse(codes.Internal, "test error")
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
@@ -352,18 +323,15 @@ func TestGRPCServer_Authentication_EdgeCases(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	server := NewGRPCServer(storage, "test-secret")
 
-	// Test без метаданных
 	ctx := context.Background()
 	_, err := server.authenticate(ctx)
 	assert.Error(t, err)
 
-	// Test с пустыми метаданными
 	md := metadata.New(map[string]string{})
 	ctxWithEmptyMD := metadata.NewIncomingContext(ctx, md)
 	_, err = server.authenticate(ctxWithEmptyMD)
 	assert.Error(t, err)
 
-	// Test с невалидным токеном
 	mdWithInvalidToken := metadata.New(map[string]string{
 		"authorization": "Bearer invalid-token",
 	})
@@ -388,18 +356,14 @@ func TestGRPCServer_HandleInvalidOperations(_ *testing.T) {
 	storage := storage.NewMemoryStorage()
 	server := NewGRPCServer(storage, "test-secret")
 
-	// Test с невалидными данными
 	_, _ = server.handleRegister([]byte("invalid json"))
 	_, _ = server.handleLogin([]byte("invalid json"))
-
 	userID := uuid.New()
 	_, _ = server.handleSync(userID, []byte("invalid json"))
 }
 
 func TestWrappedStream(_ *testing.T) {
-	// Test wrappedStream
 	stream := &wrappedStream{}
 	ctx := stream.Context()
-	// Может быть nil, это нормально для теста
 	_ = ctx
 }

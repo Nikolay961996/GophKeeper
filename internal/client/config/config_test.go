@@ -10,13 +10,11 @@ import (
 )
 
 func TestLoadConfig_Default(t *testing.T) {
-	// Create temporary directory for test
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("USERPROFILE")
 	os.Setenv("USERPROFILE", tmpDir)
 	defer os.Setenv("USERPROFILE", oldHome)
 
-	// Remove any existing config file
 	configPath := filepath.Join(tmpDir, ".gophkeeper", "config.json")
 	os.RemoveAll(filepath.Dir(configPath))
 
@@ -29,13 +27,11 @@ func TestLoadConfig_Default(t *testing.T) {
 }
 
 func TestLoadConfig_FromFile(t *testing.T) {
-	// Create temporary directory for test
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("USERPROFILE")
 	os.Setenv("USERPROFILE", tmpDir)
 	defer os.Setenv("USERPROFILE", oldHome)
 
-	// Create config directory and file
 	configDir := filepath.Join(tmpDir, ".gophkeeper")
 	err := os.MkdirAll(configDir, 0700)
 	require.NoError(t, err)
@@ -59,7 +55,6 @@ func TestLoadConfig_FromFile(t *testing.T) {
 }
 
 func TestSaveConfig(t *testing.T) {
-	// Create temporary directory for test
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("USERPROFILE")
 	os.Setenv("USERPROFILE", tmpDir)
@@ -74,7 +69,6 @@ func TestSaveConfig(t *testing.T) {
 	err := SaveConfig(config)
 	require.NoError(t, err)
 
-	// Verify file was created and can be loaded
 	loadedConfig, err := LoadConfig()
 	require.NoError(t, err)
 
@@ -84,13 +78,11 @@ func TestSaveConfig(t *testing.T) {
 }
 
 func TestLoadConfig_InvalidJSON(t *testing.T) {
-	// Create temporary directory for test
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("USERPROFILE")
 	os.Setenv("USERPROFILE", tmpDir)
 	defer os.Setenv("USERPROFILE", oldHome)
 
-	// Create config directory and invalid config file
 	configDir := filepath.Join(tmpDir, ".gophkeeper")
 	err := os.MkdirAll(configDir, 0700)
 	require.NoError(t, err)

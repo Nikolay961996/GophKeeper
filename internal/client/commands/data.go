@@ -109,8 +109,6 @@ func (d *DataCommands) Sync() error {
 	// Отправляем локальные данные на сервер (кроме тех, что были в конфликтах)
 	localItemsToSend := d.filterLocalDataForSync(localSecretsData, detectedConflicts)
 	if len(localItemsToSend) > 0 {
-		// Для простоты отправляем все локальные данные заново
-		// В реальной реализации здесь была бы более сложная логика
 		_, err = d.grpcClient.Sync(lastSync, localItemsToSend)
 		if err != nil {
 			fmt.Printf("Warning: failed to send local changes to server: %v\n", err)
@@ -326,55 +324,6 @@ func (d *DataCommands) checkLocalFileExists(fileID uuid.UUID) bool {
 	return err == nil
 }
 
-//// getLocalFileModTime возвращает время модификации локального файла
-//func (d *DataCommands) getLocalFileModTime(fileID uuid.UUID) time.Time {
-//	filePath := filepath.Join(d.binDir, fileID.String())
-//	info, err := os.Stat(filePath)
-//	if err != nil {
-//		return time.Time{}
-//	}
-//	return info.ModTime()
-//}
-
-/*
-// handleConflicts обрабатывает конфликты автоматически (пока просто логируем)
-func (d *DataCommands) handleConflicts(conflicts []common.SecretData) int {
-	if len(conflicts) == 0 {
-		return 0
-	}
-
-	fmt.Printf("Found %d conflicts:\n", len(conflicts))
-	for i, c := range conflicts {
-		fmt.Printf("%d. %s (v%d) - please resolve manually\n",
-			i+1, c.Metadata, c.Version)
-	}
-
-	// TODO: Реализовать интерактивное разрешение конфликтов
-	// Пока просто используем серверную версию
-	for _, c := range conflicts {
-		_ = d.manager.SaveSecret(&c)
-	}
-
-	return len(conflicts)
-}
-*/
-
-//// applyResolutions применяет разрешения конфликтов
-//func (d *DataCommands) applyResolutions(resolutions []common.ConflictResolution) {
-//	appliedCount := 0
-//	for _, resolution := range resolutions {
-//		if resolution.Winner != nil {
-//			if err := d.manager.SaveSecret(resolution.Winner); err != nil {
-//				fmt.Printf("Warning: failed to apply resolution for conflict %s: %v\n",
-//					resolution.ConflictID, err)
-//			} else {
-//				appliedCount++
-//			}
-//		}
-//	}
-//	fmt.Printf("Applied %d conflict resolutions\n", appliedCount)
-//}
-
 // filterNonConflictData фильтрует данные без конфликтов
 func (d *DataCommands) filterNonConflictData(serverData []common.SecretData, conflicts []common.Conflict) []common.SecretData {
 	conflictIDs := make(map[uuid.UUID]bool)
@@ -414,10 +363,8 @@ func (d *DataCommands) resolveConflictsInteractively(conflicts []common.Conflict
 
 // promptConflictResolution запрашивает у пользователя как разрешить конфликт
 func (d *DataCommands) promptConflictResolution(conflict common.Conflict) (*common.ConflictResolution, error) {
-	// Показываем информацию о конфликте
 	d.displayConflictDetails(conflict)
 
-	// Предлагаем варианты разрешения
 	for {
 		fmt.Println("\nHow would you like to resolve this conflict?")
 		fmt.Println("1. Keep local version")

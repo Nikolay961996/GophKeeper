@@ -28,7 +28,6 @@ func (s *MemoryStorage) CreateUser(user *common.User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Проверяем, нет ли уже пользователя с таким логином
 	for _, u := range s.users {
 		if u.Login == user.Login {
 			return &StorageError{"user already exists"}
@@ -75,7 +74,6 @@ func (s *MemoryStorage) SaveSecretData(data *common.SecretData) error {
 		return ErrUserNotFound
 	}
 
-	// Проверяем, существует ли уже запись с таким ID
 	for i, secret := range userSecrets {
 		if secret.ID == data.ID {
 			userSecrets[i] = data
@@ -83,7 +81,6 @@ func (s *MemoryStorage) SaveSecretData(data *common.SecretData) error {
 		}
 	}
 
-	// Если не существует, добавляем новую запись
 	s.secrets[data.UserID] = append(userSecrets, data)
 	return nil
 }

@@ -12,7 +12,6 @@ import (
 
 // TestBasicTypes проверяет базовые структуры данных
 func TestBasicTypes(t *testing.T) {
-	// FileMetadata
 	fileMeta := FileMetadata{
 		ID:          uuid.New(),
 		UserID:      uuid.New(),
@@ -30,7 +29,6 @@ func TestBasicTypes(t *testing.T) {
 	assert.Equal(t, int64(1024), fileMeta.FileSize)
 	assert.Equal(t, 4, fileMeta.TotalChunks)
 
-	// FileChunk
 	fileChunk := FileChunk{
 		ID:            uuid.New(),
 		FileID:        uuid.New(),
@@ -46,17 +44,12 @@ func TestBasicTypes(t *testing.T) {
 
 // TestInterfaceCompliance проверяет соответствие интерфейсам
 func TestInterfaceCompliance(t *testing.T) {
-	// Эти проверки только на уровне компиляции
-	// В runtime они всегда true для nil указателей
-
 	var storage *PostgresStorage
 
-	// Проверяем что тип утверждается к интерфейсам
 	_ = Storage(storage)
 	_ = FileStorage(storage)
 	_ = FileStorageChecker(storage)
 
-	// Проверяем MemoryStorage
 	memoryStorage := NewMemoryStorage()
 	_ = Storage(memoryStorage)
 	_ = FileStorageChecker(memoryStorage)
@@ -66,7 +59,6 @@ func TestInterfaceCompliance(t *testing.T) {
 func TestMemoryStorageFileMethods(t *testing.T) {
 	storage := NewMemoryStorage()
 
-	// Все file методы должны возвращать ошибки
 	err := storage.CreateFileMetadata(&FileMetadata{})
 	assert.Error(t, err)
 
@@ -88,7 +80,6 @@ func TestMemoryStorageFileMethods(t *testing.T) {
 	err = storage.DeleteFile(uuid.New())
 	assert.Error(t, err)
 
-	// SupportsFiles всегда false для MemoryStorage
 	assert.False(t, storage.SupportsFiles())
 }
 

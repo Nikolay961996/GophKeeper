@@ -61,7 +61,6 @@ func (c *GRPCClient) withAuth(ctx context.Context) context.Context {
 
 // Execute выполняет операцию через Opaque API
 func (c *GRPCClient) Execute(operation *common.OperationRequest) (*common.OperationResponse, error) {
-	// Маршалим операцию
 	payload, err := common.MarshalOperation(operation)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal operation: %v", err)
@@ -71,7 +70,6 @@ func (c *GRPCClient) Execute(operation *common.OperationRequest) (*common.Operat
 		Payload: payload,
 	}
 
-	// Отправляем запрос
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

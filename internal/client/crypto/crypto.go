@@ -36,19 +36,16 @@ func deriveKey(password string) []byte {
 
 // EncryptData шифрует данные перед отправкой на сервер
 func (c *ClientCrypto) EncryptData(dataType common.DataType, data interface{}, metadata string) (*common.SecretData, error) {
-	// Сериализуем данные в JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
 
-	// Шифруем данные
 	encryptedData, err := c.encrypt(jsonData)
 	if err != nil {
 		return nil, err
 	}
 
-	// Создаем SecretData
 	secretData := &common.SecretData{
 		ID:        uuid.New(),
 		Type:      dataType,
@@ -64,13 +61,11 @@ func (c *ClientCrypto) EncryptData(dataType common.DataType, data interface{}, m
 
 // DecryptData расшифровывает данные с сервера
 func (c *ClientCrypto) DecryptData(secretData *common.SecretData, result interface{}) error {
-	// Расшифровываем данные
 	decryptedData, err := c.decrypt(secretData.Data)
 	if err != nil {
 		return err
 	}
 
-	// Десериализуем JSON в целевую структуру
 	return json.Unmarshal(decryptedData, result)
 }
 
@@ -122,7 +117,6 @@ func (c *ClientCrypto) ChangeMasterKey(newMasterPassword string, secrets []*comm
 	var reencryptedSecrets []*common.SecretData
 
 	for _, secret := range secrets {
-		// Временно расшифровываем старым ключом
 		var temp interface{}
 		if err := c.DecryptData(secret, &temp); err != nil {
 			return nil, err

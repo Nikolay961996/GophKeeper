@@ -1,4 +1,4 @@
--- Таблица для метаданных файлов
+-- метаданные файлов
 CREATE TABLE IF NOT EXISTS file_metadata (
                                              id UUID PRIMARY KEY,
                                              user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS file_metadata (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL
                                                                                             );
 
--- Таблица для чанков файлов
+-- чанки файлов
 CREATE TABLE IF NOT EXISTS file_chunks (
                                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     file_id UUID NOT NULL REFERENCES file_metadata(id) ON DELETE CASCADE,
@@ -23,11 +23,9 @@ CREATE TABLE IF NOT EXISTS file_chunks (
     UNIQUE(file_id, chunk_index)
     );
 
--- Индексы для производительности
 CREATE INDEX IF NOT EXISTS idx_file_chunks_file_id ON file_chunks(file_id);
 CREATE INDEX IF NOT EXISTS idx_file_chunks_file_id_index ON file_chunks(file_id, chunk_index);
 CREATE INDEX IF NOT EXISTS idx_file_metadata_user_id ON file_metadata(user_id);
 
--- Обновляем таблицу secrets для ссылки на файлы
 ALTER TABLE secrets
     ADD COLUMN IF NOT EXISTS file_id UUID REFERENCES file_metadata(id) ON DELETE SET NULL;

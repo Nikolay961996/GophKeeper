@@ -18,14 +18,14 @@ service GophKeeper {
 // Универсальный запрос команды
 message CommandRequest {
   string operation = 1;
-  bytes payload = 2; // Сериализованные данные операции
+  bytes payload = 2;
 }
 
 // Универсальный ответ команды
 message CommandResponse {
   bool success = 1;
   string error = 2;
-  bytes payload = 3; // Сериализованные данные ответа
+  bytes payload = 3;
 }
 
 // Операции
@@ -71,7 +71,6 @@ message DownloadRequest {
   string file_id = 1;
 }
 
-// Общие сообщения
 message User {
   string id = 1;
   string login = 2;

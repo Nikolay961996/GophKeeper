@@ -113,8 +113,6 @@ func TestResolver_DisplayConflictInfo(t *testing.T) {
 		DetectedAt:   time.Now(),
 	}
 
-	// Этот тест в основном проверяет, что функция не паникует
-	// В реальном использовании она выводит информацию в консоль
 	resolver.displayConflictInfo(conflict)
 }
 
@@ -150,18 +148,15 @@ func TestResolver_ShowDetailedDifferences(t *testing.T) {
 		DetectedAt:   time.Now(),
 	}
 
-	// Проверяем, что функция не паникует
 	resolver.showDetailedDifferences(conflict)
 }
 
 func TestAllResolverMethods(_ *testing.T) {
 	resolver := NewResolver()
 
-	// ResolveConflicts
 	conflicts := []common.Conflict{}
 	_, _ = resolver.ResolveConflicts(conflicts)
 
-	// GetPendingResolutions
 	_ = resolver.GetPendingResolutions()
 
 	conflict := common.Conflict{
@@ -174,8 +169,6 @@ func TestAllResolverMethods(_ *testing.T) {
 	_, _ = resolver.promptForAction(conflict)
 	resolver.showSideBySide(conflict)
 
-	// Edge cases для tryAutoResolve
-	// Оба секрета nil
 	conflict1 := common.Conflict{
 		LocalSecret:  nil,
 		RemoteSecret: nil,

@@ -39,7 +39,6 @@ func NewDataManager(cfg *config.Config, masterPassword string) (*DataManager, er
 		dataFile:  dataFile,
 	}
 
-	// Загружаем локальные данные
 	if err := manager.loadLocalData(); err != nil {
 		fmt.Printf("Warning: could not load local data: %v\n", err)
 	}
@@ -279,7 +278,6 @@ func (m *DataManager) SaveSecret(secret *common.SecretData) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Проверяем версию для разрешения конфликтов
 	existing, exists := m.localData[secret.ID.String()]
 	if exists && existing.UpdatedAt.After(secret.UpdatedAt) {
 		// Локальная версия новее, пропускаем

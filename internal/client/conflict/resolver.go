@@ -56,10 +56,8 @@ func (r *Resolver) ResolveConflicts(conflicts []common.Conflict) ([]common.Confl
 
 // resolveSingleConflict разрешает один конфликт
 func (r *Resolver) resolveSingleConflict(conflict common.Conflict) (*common.ConflictResolution, error) {
-	// Показываем информацию о конфликте
 	r.displayConflictInfo(conflict)
 
-	// Предлагаем варианты разрешения
 	action, err := r.promptForAction(conflict)
 	if err != nil {
 		return nil, err
@@ -82,7 +80,6 @@ func (r *Resolver) resolveSingleConflict(conflict common.Conflict) (*common.Conf
 // displayConflictInfo показывает информацию о конфликте
 func (r *Resolver) displayConflictInfo(conflict common.Conflict) {
 	fmt.Printf("Conflict: %s\n", conflict.Reason)
-	//fmt.Printf("Secret: %s (ID: %s)\n", conflict.LocalSecret.Metadata, conflict.SecretID)
 
 	if conflict.LocalSecret != nil && conflict.RemoteSecret != nil {
 		differences := common.CompareSecrets(conflict.LocalSecret, conflict.RemoteSecret)
@@ -103,9 +100,8 @@ func (r *Resolver) displaySecretPreview(secret *common.SecretData) {
 	fmt.Printf("  Last modified: %s\n", secret.UpdatedAt.Format("2006-01-02 15:04"))
 	fmt.Printf("  Size: %d bytes\n", len(secret.Data))
 
-	// Для текстовых данных можем показать превью
+	// Для текстовых данных тлько превью
 	if secret.Type == common.TextDataType {
-		// В реальной реализации здесь была бы попытка расшифровки
 		fmt.Printf("  Preview: [encrypted text data]\n")
 	}
 }
@@ -143,7 +139,7 @@ func (r *Resolver) promptForAction(conflict common.Conflict) (string, error) {
 		return "skip", nil
 	case "5":
 		r.showDetailedDifferences(conflict)
-		return r.promptForAction(conflict) // Рекурсивно запрашиваем снова
+		return r.promptForAction(conflict)
 	case "6":
 		if conflict.LocalSecret != nil && conflict.RemoteSecret != nil {
 			r.showSideBySide(conflict)
@@ -231,7 +227,7 @@ func (r *Resolver) tryAutoResolve(conflict common.Conflict) *common.ConflictReso
 
 			return &common.ConflictResolution{
 				ConflictID: conflict.ID,
-				Winner:     conflict.LocalSecret, // можно выбрать любую
+				Winner:     conflict.LocalSecret,
 				Action:     "auto_identical",
 				ResolvedAt: time.Now(),
 			}

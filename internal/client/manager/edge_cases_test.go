@@ -12,9 +12,9 @@ import (
 
 func TestGetData_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
 
 	cfg := &config.Config{
 		UserID: uuid.New().String(),
@@ -24,7 +24,6 @@ func TestGetData_NotFound(t *testing.T) {
 	manager, err := NewDataManager(cfg, "testpassword")
 	assert.NoError(t, err)
 
-	// Пытаемся получить несуществующие данные
 	_, err = manager.GetLoginPassword(uuid.New().String())
 	assert.Error(t, err)
 
@@ -40,9 +39,9 @@ func TestGetData_NotFound(t *testing.T) {
 
 func TestDeleteData_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
 
 	cfg := &config.Config{
 		UserID: uuid.New().String(),
@@ -52,7 +51,6 @@ func TestDeleteData_NotFound(t *testing.T) {
 	manager, err := NewDataManager(cfg, "testpassword")
 	assert.NoError(t, err)
 
-	// Пытаемся удалить несуществующие данные
 	err = manager.DeleteData(uuid.New().String())
 	assert.Error(t, err)
 }

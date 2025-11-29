@@ -13,11 +13,10 @@ import (
 )
 
 func TestNewDataManager(t *testing.T) {
-	// Создаем временную директорию для тестов
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
 
 	cfg := &config.Config{
 		UserID: uuid.New().String(),
@@ -31,9 +30,9 @@ func TestNewDataManager(t *testing.T) {
 
 func TestDataManager_SaveAndGetLoginPassword(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
 
 	userID := uuid.New()
 	cfg := &config.Config{
@@ -44,16 +43,13 @@ func TestDataManager_SaveAndGetLoginPassword(t *testing.T) {
 	manager, err := NewDataManager(cfg, "testpassword")
 	require.NoError(t, err)
 
-	// Сохраняем логин/пароль
 	err = manager.SaveLoginPassword("test site", "testuser", "testpass", "example.com")
 	require.NoError(t, err)
 
-	// Получаем список данных
 	secrets := manager.ListData()
 	assert.Len(t, secrets, 1)
 	assert.Equal(t, "test site", secrets[0].Metadata)
 
-	// Получаем конкретные данные
 	secretID := secrets[0].ID.String()
 	data, err := manager.GetLoginPassword(secretID)
 	require.NoError(t, err)
@@ -64,9 +60,9 @@ func TestDataManager_SaveAndGetLoginPassword(t *testing.T) {
 
 func TestDataManager_SaveAndGetCardData(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
 
 	userID := uuid.New()
 	cfg := &config.Config{
@@ -77,11 +73,9 @@ func TestDataManager_SaveAndGetCardData(t *testing.T) {
 	manager, err := NewDataManager(cfg, "testpassword")
 	require.NoError(t, err)
 
-	// Сохраняем данные карты
 	err = manager.SaveCardData("test card", "4111111111111111", "12/25", "123", "John Doe", "Test Bank")
 	require.NoError(t, err)
 
-	// Получаем данные карты
 	secrets := manager.ListData()
 	secretID := secrets[0].ID.String()
 	data, err := manager.GetCardData(secretID)
@@ -94,9 +88,9 @@ func TestDataManager_SaveAndGetCardData(t *testing.T) {
 
 func TestDataManager_SaveAndGetTextData(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
 
 	userID := uuid.New()
 	cfg := &config.Config{
@@ -107,12 +101,10 @@ func TestDataManager_SaveAndGetTextData(t *testing.T) {
 	manager, err := NewDataManager(cfg, "testpassword")
 	require.NoError(t, err)
 
-	// Сохраняем текстовые данные
 	text := "This is some sensitive text data"
 	err = manager.SaveTextData("test text", text)
 	require.NoError(t, err)
 
-	// Получаем текстовые данные
 	secrets := manager.ListData()
 	secretID := secrets[0].ID.String()
 	result, err := manager.GetTextData(secretID)
@@ -122,9 +114,9 @@ func TestDataManager_SaveAndGetTextData(t *testing.T) {
 
 func TestDataManager_DeleteData(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
 
 	userID := uuid.New()
 	cfg := &config.Config{
@@ -135,27 +127,24 @@ func TestDataManager_DeleteData(t *testing.T) {
 	manager, err := NewDataManager(cfg, "testpassword")
 	require.NoError(t, err)
 
-	// Сохраняем данные
 	err = manager.SaveTextData("test text", "data to delete")
 	require.NoError(t, err)
 
-	// Удаляем данные
 	secrets := manager.ListData()
 	secretID := secrets[0].ID.String()
 
 	err = manager.DeleteData(secretID)
 	require.NoError(t, err)
 
-	// Проверяем, что данных нет
 	secrets = manager.ListData()
 	assert.Len(t, secrets, 0)
 }
 
 func TestDataManager_GetSecretByID(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
 
 	userID := uuid.New()
 	cfg := &config.Config{
@@ -166,11 +155,9 @@ func TestDataManager_GetSecretByID(t *testing.T) {
 	manager, err := NewDataManager(cfg, "testpassword")
 	require.NoError(t, err)
 
-	// Сохраняем данные
 	err = manager.SaveTextData("test text", "some data")
 	require.NoError(t, err)
 
-	// Ищем по ID
 	secrets := manager.ListData()
 	secretID := secrets[0].ID.String()
 
@@ -178,7 +165,6 @@ func TestDataManager_GetSecretByID(t *testing.T) {
 	assert.NotNil(t, secret)
 	assert.Equal(t, "test text", secret.Metadata)
 
-	// Ищем несуществующий ID
 	secret = manager.GetSecretByID(uuid.New().String())
 	assert.Nil(t, secret)
 }
@@ -207,7 +193,6 @@ func TestAllManagerMethods(t *testing.T) {
 
 	_ = manager.ListData()
 
-	// Пытаемся получить данные (их нет, но покрытие увеличится)
 	_, _ = manager.GetLoginPassword(uuid.New().String())
 	_, _ = manager.GetCardData(uuid.New().String())
 	_, _ = manager.GetTextData(uuid.New().String())
@@ -216,7 +201,6 @@ func TestAllManagerMethods(t *testing.T) {
 	_ = manager.GetSecretByID(uuid.New().String())
 	_ = manager.DeleteData(uuid.New().String())
 
-	// SaveSecret
 	secret := &common.SecretData{
 		ID:     uuid.New(),
 		UserID: userID,
