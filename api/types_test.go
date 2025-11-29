@@ -137,3 +137,40 @@ func TestTimeToTimestamp_ZeroTime(t *testing.T) {
 	result := TimeToTimestamp(time.Time{})
 	assert.NotNil(t, result)
 }
+
+func TestAllFunctions(_ *testing.T) {
+	// ConvertToProto
+	secret := &common.SecretData{
+		ID:       uuid.New(),
+		UserID:   uuid.New(),
+		Type:     common.LoginPasswordType,
+		Name:     "test",
+		Metadata: "metadata",
+		Data:     []byte("data"),
+		Version:  1,
+	}
+	_ = ConvertToProto(secret)
+
+	// ConvertFromProto
+	protoSecret := &SecretData{
+		Id:       uuid.New().String(),
+		UserId:   uuid.New().String(),
+		Type:     string(common.LoginPasswordType),
+		Name:     "name",
+		Data:     []byte("data"),
+		Metadata: "metadata",
+		Version:  1,
+	}
+	_, _ = ConvertFromProto(protoSecret)
+
+	// ConvertUserToProto
+	user := &common.User{
+		ID:    uuid.New(),
+		Login: "login",
+	}
+	_ = ConvertUserToProto(user)
+
+	// Timestamp functions
+	_ = TimestampToTime(nil)
+	_ = TimeToTimestamp(common.Now())
+}

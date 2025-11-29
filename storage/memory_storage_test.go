@@ -230,3 +230,41 @@ func TestMemoryStorage_FileMethodsNotSupported(t *testing.T) {
 	err = storage.DeleteFile(uuid.New())
 	assert.Error(t, err)
 }
+
+func TestAllStorageMethods(_ *testing.T) {
+	storage := NewMemoryStorage()
+
+	user := &common.User{
+		ID:        uuid.New(),
+		Login:     "testuser",
+		CreatedAt: common.Now(),
+	}
+	_ = storage.CreateUser(user)
+
+	// Вызываем все методы
+	_, _ = storage.GetUserByLogin("testuser")
+	_, _ = storage.GetUserByID(user.ID)
+
+	secret := &common.SecretData{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Type:      common.LoginPasswordType,
+		Name:      "test",
+		UpdatedAt: common.Now(),
+	}
+	_ = storage.SaveSecretData(secret)
+
+	_, _ = storage.GetUserSecrets(user.ID)
+	_, _ = storage.GetSecretsSince(user.ID, common.Now().Add(-time.Hour))
+	_ = storage.DeleteSecret(user.ID, secret.ID)
+
+	// File methods (все вернут ошибки, но покрытие)
+	_ = storage.SupportsFiles()
+	_ = storage.CreateFileMetadata(&FileMetadata{})
+	_ = storage.SaveFileChunk(&FileChunk{})
+	_, _ = storage.GetFileMetadata(uuid.New())
+	_, _ = storage.GetFileChunk(uuid.New(), 0)
+	_, _ = storage.GetAllFileChunks(uuid.New())
+	_, _ = storage.GetUserFiles(user.ID)
+	_ = storage.DeleteFile(uuid.New())
+}

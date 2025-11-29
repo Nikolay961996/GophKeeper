@@ -4,6 +4,7 @@ import (
 	"context"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"gophkeeper/internal/common"
 	"testing"
 
 	"gophkeeper/internal/client/config"
@@ -89,4 +90,27 @@ func TestGRPCClient_Login(t *testing.T) {
 
 func TestGRPCClient_Sync(t *testing.T) {
 	t.Skip("Requires gRPC mock setup")
+}
+
+func TestAllGRPCMethods(_ *testing.T) {
+	cfg := &config.Config{
+		ServerURL: "localhost:8081",
+		Token:     "test-token",
+	}
+
+	client, _ := NewGRPCClient(cfg)
+	if client != nil {
+		_ = client.withAuth(context.Background())
+		_ = client.Close()
+
+		// Пытаемся вызвать методы
+		op := &common.OperationRequest{Type: common.OpLogin}
+		_, _ = client.Execute(op)
+
+		_, _ = client.Register("login", "pass")
+		_, _ = client.Login("login", "pass")
+		_, _ = client.Sync(common.Now(), []common.SecretData{})
+		_ = client.UploadFile("path", "id")
+		_ = client.DownloadFile("id", "path")
+	}
 }

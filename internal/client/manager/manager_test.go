@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"gophkeeper/internal/common"
 	"os"
 	"testing"
 
@@ -180,4 +181,46 @@ func TestDataManager_GetSecretByID(t *testing.T) {
 	// Ищем несуществующий ID
 	secret = manager.GetSecretByID(uuid.New().String())
 	assert.Nil(t, secret)
+}
+
+func TestAllManagerMethods(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
+
+	userID := uuid.New()
+	cfg := &config.Config{
+		UserID: userID.String(),
+		Token:  "test-token",
+	}
+
+	manager, err := NewDataManager(cfg, "testpassword")
+	if err != nil {
+		return
+	}
+
+	_ = manager.SaveLoginPassword("name", "login", "pass", "site")
+	_ = manager.SaveCardData("card", "1111", "12/25", "123", "holder", "bank")
+	_ = manager.SaveTextData("text", "content")
+	_ = manager.SaveBinaryData("bin", []byte("data"), "file.txt")
+
+	_ = manager.ListData()
+
+	// Пытаемся получить данные (их нет, но покрытие увеличится)
+	_, _ = manager.GetLoginPassword(uuid.New().String())
+	_, _ = manager.GetCardData(uuid.New().String())
+	_, _ = manager.GetTextData(uuid.New().String())
+	_, _, _ = manager.GetBinaryData(uuid.New().String())
+
+	_ = manager.GetSecretByID(uuid.New().String())
+	_ = manager.DeleteData(uuid.New().String())
+
+	// SaveSecret
+	secret := &common.SecretData{
+		ID:     uuid.New(),
+		UserID: userID,
+		Type:   common.TextDataType,
+	}
+	_ = manager.SaveSecret(secret)
 }

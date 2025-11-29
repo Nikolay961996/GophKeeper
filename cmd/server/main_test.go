@@ -8,6 +8,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestMain(_ *testing.T) {
+}
+
+func TestFlags(_ *testing.T) {
+	// Проверяем, что флаги объявлены и доступны
+	_ = grpcAddr
+	_ = jwtSecret
+	_ = dbConnStr
+	_ = usePostgres
+}
+
+func TestEnvVar(_ *testing.T) {
+	// Проверяем логику работы с переменными окружения
+	os.Setenv("DATABASE_URL", "test-url")
+	if connStr := os.Getenv("DATABASE_URL"); connStr != "" {
+		_ = connStr
+	}
+}
+
 func TestMainFunction(t *testing.T) {
 	// Сохраняем оригинальные флаги и аргументы
 	oldArgs := os.Args

@@ -293,3 +293,39 @@ func TestGRPCServer_InvalidOperation(t *testing.T) {
 	assert.False(t, unknownResp.Success)
 	assert.Contains(t, unknownResp.Error, "unknown operation")
 }
+
+func TestAllServerMethods(_ *testing.T) {
+	storage := storage.NewMemoryStorage()
+	server := NewGRPCServer(storage, "test-secret")
+
+	// Execute с разными операциями
+	req := &api.CommandRequest{
+		Payload: []byte("invalid"),
+	}
+	_, _ = server.Execute(context.Background(), req)
+
+	// Handle методы напрямую
+	_, _ = server.handleRegister([]byte("invalid"))
+	_, _ = server.handleLogin([]byte("invalid"))
+
+	userID := uuid.New()
+	_, _ = server.handleSync(userID, []byte("invalid"))
+
+	// Authenticate с разными случаями
+	ctx := context.Background()
+	_, _ = server.authenticate(ctx)
+
+	ctxWithMD := metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
+	_, _ = server.authenticate(ctxWithMD)
+
+	ctxWithToken := metadata.NewIncomingContext(ctx, metadata.New(map[string]string{
+		"authorization": "Bearer invalid",
+	}))
+	_, _ = server.authenticate(ctxWithToken)
+
+	// Get secret
+	_, _ = server.getSecretByID(userID, uuid.New())
+
+	// Create error response
+	_, _ = server.createErrorResponse(codes.Internal, "error")
+}

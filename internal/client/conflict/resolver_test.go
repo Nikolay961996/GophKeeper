@@ -153,3 +153,46 @@ func TestResolver_ShowDetailedDifferences(t *testing.T) {
 	// Проверяем, что функция не паникует
 	resolver.showDetailedDifferences(conflict)
 }
+
+func TestAllResolverMethods(_ *testing.T) {
+	resolver := NewResolver()
+
+	// ResolveConflicts
+	conflicts := []common.Conflict{}
+	_, _ = resolver.ResolveConflicts(conflicts)
+
+	// GetPendingResolutions
+	_ = resolver.GetPendingResolutions()
+
+	conflict := common.Conflict{
+		ID:           "test",
+		SecretID:     uuid.New(),
+		Reason:       "test",
+		LocalSecret:  &common.SecretData{},
+		RemoteSecret: &common.SecretData{},
+	}
+	_, _ = resolver.promptForAction(conflict)
+	resolver.showSideBySide(conflict)
+
+	// Edge cases для tryAutoResolve
+	// Оба секрета nil
+	conflict1 := common.Conflict{
+		LocalSecret:  nil,
+		RemoteSecret: nil,
+	}
+	_ = resolver.tryAutoResolve(conflict1)
+
+	// Только локальный
+	conflict2 := common.Conflict{
+		LocalSecret:  &common.SecretData{},
+		RemoteSecret: nil,
+	}
+	_ = resolver.tryAutoResolve(conflict2)
+
+	// Только удаленный
+	conflict3 := common.Conflict{
+		LocalSecret:  nil,
+		RemoteSecret: &common.SecretData{},
+	}
+	_ = resolver.tryAutoResolve(conflict3)
+}

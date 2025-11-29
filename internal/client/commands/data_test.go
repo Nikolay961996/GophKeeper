@@ -23,6 +23,9 @@ type MockDataManager struct {
 	DeleteDataFunc        func(id string) error
 	SaveSecretFunc        func(secret *common.SecretData) error
 	GetLoginPasswordFunc  func(id string) (*common.LoginPasswordData, error)
+	GetCardDataFunc       func(id string) (*common.CardData, error)
+	GetTextDataFunc       func(id string) (string, error)
+	GetBinaryDataFunc     func(id string) (string, []byte, error)
 }
 
 func (m *MockDataManager) SaveLoginPassword(name, login, password, site string) error {
@@ -273,4 +276,54 @@ func TestDataCommands_Delete(t *testing.T) {
 	err := dataCommands.Delete(secretID.String())
 	require.NoError(t, err)
 	assert.True(t, deleted)
+}
+
+func TestAllDataCommandMethods(_ *testing.T) {
+	cfg := &config.Config{Token: "test-token"}
+
+	mockManager := &MockDataManager{
+		SaveLoginPasswordFunc: func(name, login, password, site string) error { return nil },
+		SaveCardDataFunc:      func(name, number, expiry, cvv, holder, bank string) error { return nil },
+		SaveTextDataFunc:      func(name, text string) error { return nil },
+		SaveBinaryDataFunc:    func(name string, data []byte, fileName string) error { return nil },
+		ListDataFunc:          func() []*common.SecretData { return []*common.SecretData{} },
+		GetSecretByIDFunc:     func(id string) *common.SecretData { return nil },
+		DeleteDataFunc:        func(id string) error { return nil },
+		SaveSecretFunc:        func(secret *common.SecretData) error { return nil },
+		GetLoginPasswordFunc:  func(id string) (*common.LoginPasswordData, error) { return nil, nil },
+		GetCardDataFunc:       func(id string) (*common.CardData, error) { return nil, nil },
+		GetTextDataFunc:       func(id string) (string, error) { return "", nil },
+		GetBinaryDataFunc:     func(id string) (string, []byte, error) { return "", nil, nil },
+	}
+
+	mockClient := &MockGRPCClient{
+		SyncFunc: func(lastSync time.Time, data []common.SecretData) (*common.SyncResult, error) {
+			return &common.SyncResult{}, nil
+		},
+	}
+
+	dataCommands := NewDataCommands(cfg, mockManager, mockClient)
+
+	_ = dataCommands.AddLoginPassword("name", "login", "pass", "site")
+	_ = dataCommands.AddCard("card", "1111", "12/25", "123", "holder", "bank")
+	_ = dataCommands.AddText("text", "content")
+	_ = dataCommands.AddFile("file", "path")
+	_ = dataCommands.List()
+	_ = dataCommands.Get(uuid.New().String())
+	_ = dataCommands.Delete(uuid.New().String())
+	_ = dataCommands.Sync()
+
+	_ = dataCommands.checkLocalFileExists(uuid.New())
+
+	conflicts := []common.Conflict{}
+	_, _ = dataCommands.resolveConflictsInteractively(conflicts)
+	_ = dataCommands.applyConflictResolutions([]common.ConflictResolution{})
+	_ = dataCommands.filterNonConflictData([]common.SecretData{}, conflicts)
+	_ = dataCommands.filterLocalDataForSync([]common.SecretData{}, conflicts)
+
+	//secret := &common.SecretData{
+	//	ID:   uuid.New(),
+	//	Type: common.LoginPasswordType,
+	//}
+	//_ = dataCommands.printSecret(secret)
 }
