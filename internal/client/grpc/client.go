@@ -44,6 +44,9 @@ func NewGRPCClient(cfg *config.Config) (*GRPCClient, error) {
 
 // Close закрывает соединение
 func (c *GRPCClient) Close() error {
+	if c.conn == nil {
+		return nil
+	}
 	return c.conn.Close()
 }
 

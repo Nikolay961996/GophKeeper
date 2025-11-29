@@ -174,3 +174,38 @@ func TestAllFunctions(_ *testing.T) {
 	_ = TimestampToTime(nil)
 	_ = TimeToTimestamp(common.Now())
 }
+
+func TestConvertFromProto_EdgeCases(t *testing.T) {
+	// Invalid UUID
+	protoSecret := &SecretData{
+		Id:     "invalid-uuid",
+		UserId: uuid.New().String(),
+		Type:   string(common.LoginPasswordType),
+	}
+	_, err := ConvertFromProto(protoSecret)
+	assert.Error(t, err)
+
+	// Empty UserID
+	protoSecret2 := &SecretData{
+		Id:     uuid.New().String(),
+		UserId: "",
+		Type:   string(common.LoginPasswordType),
+	}
+	_, err = ConvertFromProto(protoSecret2)
+	assert.Error(t, err)
+}
+
+func TestTimestampFunctions(t *testing.T) {
+	// Nil timestamp
+	result := TimestampToTime(nil)
+	assert.True(t, result.IsZero())
+
+	// Zero time
+	timestamp := TimeToTimestamp(time.Time{})
+	assert.NotNil(t, timestamp)
+
+	// Valid time
+	now := time.Now()
+	timestamp = TimeToTimestamp(now)
+	assert.True(t, timestamp.IsValid())
+}
