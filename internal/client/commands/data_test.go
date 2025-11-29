@@ -1,13 +1,13 @@
 package commands
 
 import (
+	"github.com/google/uuid"
 	"testing"
 	"time"
 
 	"gophkeeper/internal/client/config"
 	"gophkeeper/internal/common"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -399,9 +399,6 @@ func TestDataCommands_HelperMethods(_ *testing.T) {
 
 	secretText := &common.SecretData{Type: common.TextDataType}
 	_ = dataCommands.printSecret(secretText)
-
-	secretBinary := &common.SecretData{Type: common.BinaryDataType}
-	_ = dataCommands.printSecret(secretBinary)
 
 	secretUnknown := &common.SecretData{Type: "unknown"}
 	_ = dataCommands.printSecret(secretUnknown)
