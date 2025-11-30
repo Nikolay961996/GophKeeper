@@ -5,7 +5,7 @@ on:
     branches: [dev]
     tags: ['v*']
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   build:
@@ -29,50 +29,53 @@ jobs:
             server_binary: gophkeeper-server
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.24'
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
 
-    - name: Build Client
-      run: |
-        go build -v -o ${{ matrix.client_binary }} \
-          -ldflags="-X main.version=${{ github.ref_name }} \
-                   -X main.commit=${{ github.sha }} \
-                   -X main.date=$(date -u +'%Y-%m-%d_%H:%M:%S')" \
-          ./cmd/client
+      - name: Build Client
+        shell: bash
+        run: |
+          go build -v -o ${{ matrix.client_binary }} \
+            -ldflags="-X main.version=${{ github.ref_name }} \
+                     -X main.commit=${{ github.sha }} \
+                     -X main.date=$(date -u +'%Y-%m-%d_%H:%M:%S')" \
+            ./cmd/client
 
-    - name: Build Server
-      run: |
-        go build -v -o ${{ matrix.server_binary }} \
-          -ldflags="-X main.version=${{ github.ref_name }} \
-                   -X main.commit=${{ github.sha }} \
-                   -X main.date=$(date -u +'%Y-%m-%d_%H:%M:%S')" \
-          ./cmd/server
+      - name: Build Server
+        shell: bash
+        run: |
+          go build -v -o ${{ matrix.server_binary }} \
+            -ldflags="-X main.version=${{ github.ref_name }} \
+                     -X main.commit=${{ github.sha }} \
+                     -X main.date=$(date -u +'%Y-%m-%d_%H:%M:%S')" \
+            ./cmd/server
 
-    - name: Create artifacts directory
-      run: |
-        mkdir -p artifacts
+      - name: Create artifacts directory
+        shell: bash
+        run: |
+          mkdir -p artifacts
 
-    - name: Copy binaries to artifacts
-      run: |
-        cp ${{ matrix.client_binary }} artifacts/
-        cp ${{ matrix.server_binary }} artifacts/
-        # Создаем README с информацией о сборке
-        echo "Build: ${{ github.ref_name }}" > artifacts/version.txt
-        echo "Commit: ${{ github.sha }}" >> artifacts/version.txt
-        echo "Date: $(date -u)" >> artifacts/version.txt
-        echo "OS: ${{ matrix.os }}" >> artifacts/version.txt
+      - name: Copy binaries to artifacts
+        shell: bash
+        run: |
+          cp ${{ matrix.client_binary }} artifacts/
+          cp ${{ matrix.server_binary }} artifacts/
+          echo "Build: ${{ github.ref_name }}" > artifacts/version.txt
+          echo "Commit: ${{ github.sha }}" >> artifacts/version.txt
+          echo "Date: $(date -u)" >> artifacts/version.txt
+          echo "OS: ${{ matrix.os }}" >> artifacts/version.txt
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: gophkeeper-${{ matrix.os }}-${{ github.sha }}
-        path: artifacts/
-        retention-days: 30
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gophkeeper-${{ matrix.os }}-${{ github.sha }}
+          path: artifacts/
+          retention-days: 30
 
   release:
     name: Create Release
@@ -81,20 +84,20 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: dist
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
 
-    - name: List downloaded files
-      run: |
-        find dist -type f -name "*.exe" -o -name "gophkeeper-*" | sort
+      - name: List downloaded files
+        run: |
+          find dist -type f -name "*.exe" -o -name "gophkeeper-*" | sort
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          dist/**/*.exe
-          dist/**/gophkeeper-client
-          dist/**/gophkeeper-server
-        generate_release_notes: true
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/**/*.exe
+            dist/**/gophkeeper-client
+            dist/**/gophkeeper-server
+          generate_release_notes: true
