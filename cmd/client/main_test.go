@@ -1,6 +1,7 @@
 package main
 
 import (
+	cobrakeeper "gophkeeper/internal/client/cobra"
 	"gophkeeper/internal/client/commands"
 	"gophkeeper/internal/client/config"
 	"gophkeeper/internal/client/grpc"
@@ -17,18 +18,18 @@ func TestCommandCreation(t *testing.T) {
 	grpcClient := &grpc.GRPCClient{}
 
 	commands := []*cobra.Command{
-		versionCmd(),
-		userCmd(cfg),
-		registerCmd(authCommands),
-		loginCmd(authCommands),
-		syncCmd(cfg, grpcClient),
-		listCmd(cfg, grpcClient),
-		showCmd(cfg, grpcClient),
-		delCmd(cfg, grpcClient),
-		addLoginCmd(cfg, grpcClient),
-		addCardCmd(cfg, grpcClient),
-		addTextCmd(cfg, grpcClient),
-		addFileCmd(cfg, grpcClient),
+		cobrakeeper.VersionCmd(version, commit, date),
+		cobrakeeper.UserCmd(cfg),
+		cobrakeeper.RegisterCmd(authCommands),
+		cobrakeeper.LoginCmd(authCommands),
+		cobrakeeper.SyncCmd(cfg, grpcClient, masterPassword),
+		cobrakeeper.ListCmd(cfg, grpcClient, masterPassword),
+		cobrakeeper.ShowCmd(cfg, grpcClient, masterPassword),
+		cobrakeeper.DelCmd(cfg, grpcClient, masterPassword),
+		cobrakeeper.AddLoginCmd(cfg, grpcClient, masterPassword),
+		cobrakeeper.AddCardCmd(cfg, grpcClient, masterPassword),
+		cobrakeeper.AddTextCmd(cfg, grpcClient, masterPassword),
+		cobrakeeper.AddFileCmd(cfg, grpcClient, masterPassword),
 	}
 
 	for _, cmd := range commands {
@@ -49,12 +50,12 @@ func TestVersionVariables(t *testing.T) {
 func TestGetDataManager(t *testing.T) {
 	cfg := &config.Config{Token: "test-token"}
 
-	manager, err := getDataManager(true, cfg)
+	manager, err := cobrakeeper.GetDataManager(true, cfg, masterPassword)
 	assert.Error(t, err)
 	assert.Nil(t, manager)
 
 	cfg.Token = ""
-	manager, err = getDataManager(true, cfg)
+	manager, err = cobrakeeper.GetDataManager(true, cfg, masterPassword)
 	assert.Error(t, err)
 	assert.Nil(t, manager)
 }
