@@ -15,18 +15,20 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
-            client_binary: gophkeeper-client
-            server_binary: gophkeeper-server
+            client_binary: gophkeeper-client-linux
+            server_binary: gophkeeper-server-linux
           - os: windows-latest
-            client_binary: gophkeeper-client.exe
-            server_binary: gophkeeper-server.exe
+            client_binary: gophkeeper-client-windows.exe
+            server_binary: gophkeeper-server-windows.exe
           - os: macos-latest
-            client_binary: gophkeeper-client
-            server_binary: gophkeeper-server
+            client_binary: gophkeeper-client-macos
+            server_binary: gophkeeper-server-macos
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -51,26 +53,18 @@ jobs:
                      -X main.date=$(date -u +'%Y-%m-%d_%H:%M:%S')" \
             ./cmd/server
 
-      - name: Create artifacts directory
-        shell: bash
-        run: |
-          mkdir -p artifacts
-
-      - name: Copy binaries to artifacts
-        shell: bash
-        run: |
-          cp ${{ matrix.client_binary }} artifacts/
-          cp ${{ matrix.server_binary }} artifacts/
-          echo "Build: ${{ github.ref_name }}" > artifacts/version.txt
-          echo "Commit: ${{ github.sha }}" >> artifacts/version.txt
-          echo "Date: $(date -u)" >> artifacts/version.txt
-          echo "OS: ${{ matrix.os }}" >> artifacts/version.txt
-
-      - name: Upload artifacts
+      - name: Upload client artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gophkeeper-${{ matrix.os }}-${{ github.sha }}
-          path: artifacts/
+          name: ${{ matrix.client_binary }}
+          path: ${{ matrix.client_binary }}
+          retention-days: 30
+
+      - name: Upload server artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.server_binary }}
+          path: ${{ matrix.server_binary }}
           retention-days: 30
 
   release:
@@ -79,23 +73,22 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
 
+    permissions:
+      contents: write
+
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: gophkeeper-*
-          path: dist
+          path: artifacts
 
       - name: List downloaded files
         run: |
-          find dist -type f | sort
-          echo "Files for release:"
-          ls -la dist/
+          echo "Downloaded artifacts:"
+          find artifacts -type f -name "gophkeeper-*" | sort
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            dist/**/gophkeeper-client*
-            dist/**/gophkeeper-server*
+          files: artifacts/**/*
           generate_release_notes: true
