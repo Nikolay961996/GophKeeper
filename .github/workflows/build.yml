@@ -1,0 +1,94 @@
+name: Build Go Application
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            client_binary: gophkeeper-client-linux
+            server_binary: gophkeeper-server-linux
+          - os: windows-latest
+            client_binary: gophkeeper-client-windows.exe
+            server_binary: gophkeeper-server-windows.exe
+          - os: macos-latest
+            client_binary: gophkeeper-client-macos
+            server_binary: gophkeeper-server-macos
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Build Client
+        shell: bash
+        run: |
+          go build -v -o ${{ matrix.client_binary }} \
+            -ldflags="-X main.version=${{ github.ref_name }} \
+                     -X main.commit=${{ github.sha }} \
+                     -X main.date=$(date -u +'%Y-%m-%d_%H:%M:%S')" \
+            ./cmd/client
+
+      - name: Build Server
+        shell: bash
+        run: |
+          go build -v -o ${{ matrix.server_binary }} \
+            -ldflags="-X main.version=${{ github.ref_name }} \
+                     -X main.commit=${{ github.sha }} \
+                     -X main.date=$(date -u +'%Y-%m-%d_%H:%M:%S')" \
+            ./cmd/server
+
+      - name: Upload client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.client_binary }}
+          path: ${{ matrix.client_binary }}
+          retention-days: 30
+
+      - name: Upload server artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.server_binary }}
+          path: ${{ matrix.server_binary }}
+          retention-days: 30
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded files
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -type f -name "gophkeeper-*" | sort
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

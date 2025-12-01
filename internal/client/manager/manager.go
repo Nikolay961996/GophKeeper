@@ -1,0 +1,405 @@
+// Package manager contains data manipulation functions
+package manager
+
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/google/uuid"
+	"log"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"gophkeeper/internal/client/config"
+	"gophkeeper/internal/client/crypto"
+	"gophkeeper/internal/common"
+)
+
+// DataManager управляет данными на клиенте
+type DataManager struct {
+	cfg       *config.Config
+	crypto    *crypto.ClientCrypto
+	localData map[string]*common.SecretData
+	dataFile  string
+	mu        sync.RWMutex
+}
+
+// NewDataManager создает новый DataManager
+func NewDataManager(cfg *config.Config, masterPassword string) (*DataManager, error) {
+	dataFile, err := getDataFilePath()
+	if err != nil {
+		return nil, err
+	}
+
+	manager := &DataManager{
+		cfg:       cfg,
+		crypto:    crypto.NewClientCrypto(masterPassword),
+		localData: make(map[string]*common.SecretData),
+		dataFile:  dataFile,
+	}
+
+	if err := manager.loadLocalData(); err != nil {
+		fmt.Printf("Warning: could not load local data: %v\n", err)
+	}
+
+	return manager, nil
+}
+
+// SaveLoginPassword сохраняет логин/пароль
+func (m *DataManager) SaveLoginPassword(name, login, password, site string) error {
+	data := common.LoginPasswordData{
+		Login:    login,
+		Password: password,
+		Site:     site,
+	}
+
+	secret, err := m.crypto.EncryptData(common.LoginPasswordType, data, name)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.localData[secret.ID.String()] = secret
+
+	return m.saveLocalData()
+}
+
+// SaveCardData сохраняет данные банковской карты
+func (m *DataManager) SaveCardData(name, number, expiry, cvv, holder, bank string) error {
+	data := common.CardData{
+		Number: number,
+		Expiry: expiry,
+		CVV:    cvv,
+		Holder: holder,
+		Bank:   bank,
+	}
+
+	secret, err := m.crypto.EncryptData(common.CardDataType, data, name)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.localData[secret.ID.String()] = secret
+	return m.saveLocalData()
+}
+
+// SaveTextData сохраняет текстовые данные
+func (m *DataManager) SaveTextData(name, text string) error {
+	secret, err := m.crypto.EncryptData(common.TextDataType, text, name)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.localData[secret.ID.String()] = secret
+	return m.saveLocalData()
+}
+
+// SaveBinaryData сохраняет бинарные данные с проверкой дубликатов
+func (m *DataManager) SaveBinaryData(name string, data []byte, fileName string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, secret := range m.localData {
+		if secret.Type == common.BinaryDataType {
+			var existingMetadata common.BinaryMetaData
+			if err := json.Unmarshal([]byte(secret.Metadata), &existingMetadata); err == nil {
+				if existingMetadata.Name == name {
+					return m.updateExistingBinaryData(secret, data, fileName)
+				}
+			}
+		}
+	}
+
+	metadata := common.BinaryMetaData{
+		Size:     len(data),
+		Name:     name,
+		FileName: fileName,
+	}
+
+	jsonData, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+
+	secret, err := m.crypto.EncryptData(common.BinaryDataType, data, string(jsonData))
+	if err != nil {
+		return err
+	}
+
+	m.localData[secret.ID.String()] = secret
+	return m.saveLocalData()
+}
+
+// GetLoginPassword возвращает логин/пароль
+func (m *DataManager) GetLoginPassword(id string) (*common.LoginPasswordData, error) {
+	m.mu.RLock()
+	secret, exists := m.localData[id]
+	m.mu.RUnlock()
+
+	// m.cfg.UserID
+	if !exists || m.cfg.UserID != secret.UserID.String() {
+		return nil, fmt.Errorf("data not found")
+	}
+
+	var result common.LoginPasswordData
+	if err := m.crypto.DecryptData(secret, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+// GetCardData возвращает данные карты
+func (m *DataManager) GetCardData(id string) (*common.CardData, error) {
+	m.mu.RLock()
+	secret, exists := m.localData[id]
+	m.mu.RUnlock()
+
+	if !exists || m.cfg.UserID != secret.UserID.String() {
+		return nil, fmt.Errorf("data not found")
+	}
+
+	var result common.CardData
+	if err := m.crypto.DecryptData(secret, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+// GetTextData возвращает текстовые данные
+func (m *DataManager) GetTextData(id string) (string, error) {
+	m.mu.RLock()
+	secret, exists := m.localData[id]
+	m.mu.RUnlock()
+
+	if !exists || m.cfg.UserID != secret.UserID.String() {
+		return "", fmt.Errorf("data not found")
+	}
+
+	var result string
+	if err := m.crypto.DecryptData(secret, &result); err != nil {
+		return "", err
+	}
+
+	return result, nil
+}
+
+// GetBinaryData возвращает бинарные данные
+func (m *DataManager) GetBinaryData(id string) (string, []byte, error) {
+	m.mu.RLock()
+	secret, exists := m.localData[id]
+	m.mu.RUnlock()
+
+	if !exists || m.cfg.UserID != secret.UserID.String() {
+		return "", nil, fmt.Errorf("data not found")
+	}
+
+	fullFilePath := filepath.Join(filepath.Dir(m.dataFile), "bin", id)
+	d, err := os.ReadFile(fullFilePath)
+	if err != nil {
+		return "", nil, err
+	}
+	secret.Data = d
+
+	var result []byte
+	if err = m.crypto.DecryptData(secret, &result); err != nil {
+		return "", nil, err
+	}
+
+	var fileMetadata common.BinaryMetaData
+	err = json.Unmarshal([]byte(secret.Metadata), &fileMetadata)
+	if err != nil {
+		return "", nil, err
+	}
+	fmt.Printf("Name: %s\n", fileMetadata.Name)
+	fmt.Printf("Filename: %s\n", fileMetadata.FileName)
+	fmt.Printf("Size: %d\n", fileMetadata.Size)
+
+	return fileMetadata.FileName, result, nil
+}
+
+// ListData возвращает список всех данных
+func (m *DataManager) ListData() []*common.SecretData {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var result []*common.SecretData
+	for _, secret := range m.localData {
+		if secret.UserID.String() == m.cfg.UserID {
+			result = append(result, secret)
+		}
+	}
+	return result
+}
+
+// DeleteData удаляет данные
+func (m *DataManager) DeleteData(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	secret, exists := m.localData[id]
+	if !exists {
+		return fmt.Errorf("data not found")
+	}
+
+	delete(m.localData, id)
+
+	if secret.Type == common.BinaryDataType {
+		fullFilePath := filepath.Join(filepath.Dir(m.dataFile), "bin", id)
+		if err := os.Remove(fullFilePath); err != nil {
+			log.Printf("file not found")
+		}
+	}
+
+	fmt.Printf("Success removed data\n")
+	return m.saveLocalData()
+}
+
+// GetSecretByID возвращает секрет по ID
+func (m *DataManager) GetSecretByID(id string) *common.SecretData {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.localData[id]
+}
+
+// SaveSecret сохраняет секрет (для синхронизации)
+func (m *DataManager) SaveSecret(secret *common.SecretData) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	existing, exists := m.localData[secret.ID.String()]
+	if exists && existing.UpdatedAt.After(secret.UpdatedAt) {
+		// Локальная версия новее, пропускаем
+		return nil
+	}
+
+	m.localData[secret.ID.String()] = secret
+	return m.saveLocalData()
+}
+
+// updateExistingBinaryData обновляет существующие бинарные данные
+func (m *DataManager) updateExistingBinaryData(secret *common.SecretData, data []byte, fileName string) error {
+	var metadata common.BinaryMetaData
+	if err := json.Unmarshal([]byte(secret.Metadata), &metadata); err != nil {
+		return err
+	}
+
+	metadata.Size = len(data)
+	metadata.FileName = fileName
+
+	updatedMetadata, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+
+	secret.Metadata = string(updatedMetadata)
+	secret.UpdatedAt = time.Now()
+	secret.Version++
+
+	binDir := filepath.Join(filepath.Dir(m.dataFile), "bin")
+	if err := os.MkdirAll(binDir, 0700); err != nil {
+		return err
+	}
+
+	filePath := filepath.Join(binDir, secret.ID.String())
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return err
+	}
+
+	return m.saveLocalData()
+}
+
+// loadLocalData загружает локальные данные из файла
+func (m *DataManager) loadLocalData() error {
+	data, err := os.ReadFile(m.dataFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // Файл не существует - это нормально
+		}
+		return err
+	}
+
+	var secrets []*common.SecretData
+	if err := json.Unmarshal(data, &secrets); err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, secret := range secrets {
+		m.localData[secret.ID.String()] = secret
+	}
+
+	return nil
+}
+
+// saveLocalData сохраняет локальные данные в файл
+func (m *DataManager) saveLocalData() error {
+	binDir := filepath.Join(filepath.Dir(m.dataFile), "bin")
+	if err := os.MkdirAll(binDir, 0700); err != nil {
+		return err
+	}
+
+	var secrets []*common.SecretData
+	for _, secret := range m.localData {
+		if uuid.Nil == secret.UserID {
+			userID, err := uuid.Parse(m.cfg.UserID)
+			if err != nil {
+				return err
+			}
+			secret.UserID = userID
+		}
+		if secret.Type == common.BinaryDataType && len(secret.Data) > 0 {
+			err := m.saveLocalBinData(secret, binDir)
+			if err != nil {
+				return err
+			}
+		}
+		secrets = append(secrets, secret)
+	}
+
+	data, err := json.MarshalIndent(secrets, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	dir := filepath.Dir(m.dataFile)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+
+	return os.WriteFile(m.dataFile, data, 0600)
+}
+
+func (m *DataManager) saveLocalBinData(secret *common.SecretData, binDir string) error {
+	err := os.WriteFile(filepath.Join(binDir, secret.ID.String()), secret.Data, 0644)
+	if err != nil {
+		fmt.Printf("Error writing file: %v\n", err)
+		return err
+	}
+	secret.Data = nil
+
+	return nil
+}
+
+// getDataFilePath возвращает путь к файлу данных
+func getDataFilePath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(homeDir, ".gophkeeper", "data.json"), nil
+}

@@ -1,0 +1,210 @@
+package manager
+
+import (
+	"gophkeeper/internal/common"
+	"os"
+	"testing"
+
+	"gophkeeper/internal/client/config"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestNewDataManager(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
+
+	cfg := &config.Config{
+		UserID: uuid.New().String(),
+		Token:  "test-token",
+	}
+
+	manager, err := NewDataManager(cfg, "testpassword")
+	require.NoError(t, err)
+	assert.NotNil(t, manager)
+}
+
+func TestDataManager_SaveAndGetLoginPassword(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
+
+	userID := uuid.New()
+	cfg := &config.Config{
+		UserID: userID.String(),
+		Token:  "test-token",
+	}
+
+	manager, err := NewDataManager(cfg, "testpassword")
+	require.NoError(t, err)
+
+	err = manager.SaveLoginPassword("test site", "testuser", "testpass", "example.com")
+	require.NoError(t, err)
+
+	secrets := manager.ListData()
+	assert.Len(t, secrets, 1)
+	assert.Equal(t, "test site", secrets[0].Metadata)
+
+	secretID := secrets[0].ID.String()
+	data, err := manager.GetLoginPassword(secretID)
+	require.NoError(t, err)
+	assert.Equal(t, "testuser", data.Login)
+	assert.Equal(t, "testpass", data.Password)
+	assert.Equal(t, "example.com", data.Site)
+}
+
+func TestDataManager_SaveAndGetCardData(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
+
+	userID := uuid.New()
+	cfg := &config.Config{
+		UserID: userID.String(),
+		Token:  "test-token",
+	}
+
+	manager, err := NewDataManager(cfg, "testpassword")
+	require.NoError(t, err)
+
+	err = manager.SaveCardData("test card", "4111111111111111", "12/25", "123", "John Doe", "Test Bank")
+	require.NoError(t, err)
+
+	secrets := manager.ListData()
+	secretID := secrets[0].ID.String()
+	data, err := manager.GetCardData(secretID)
+	require.NoError(t, err)
+	assert.Equal(t, "4111111111111111", data.Number)
+	assert.Equal(t, "12/25", data.Expiry)
+	assert.Equal(t, "123", data.CVV)
+	assert.Equal(t, "John Doe", data.Holder)
+}
+
+func TestDataManager_SaveAndGetTextData(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
+
+	userID := uuid.New()
+	cfg := &config.Config{
+		UserID: userID.String(),
+		Token:  "test-token",
+	}
+
+	manager, err := NewDataManager(cfg, "testpassword")
+	require.NoError(t, err)
+
+	text := "This is some sensitive text data"
+	err = manager.SaveTextData("test text", text)
+	require.NoError(t, err)
+
+	secrets := manager.ListData()
+	secretID := secrets[0].ID.String()
+	result, err := manager.GetTextData(secretID)
+	require.NoError(t, err)
+	assert.Equal(t, text, result)
+}
+
+func TestDataManager_DeleteData(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
+
+	userID := uuid.New()
+	cfg := &config.Config{
+		UserID: userID.String(),
+		Token:  "test-token",
+	}
+
+	manager, err := NewDataManager(cfg, "testpassword")
+	require.NoError(t, err)
+
+	err = manager.SaveTextData("test text", "data to delete")
+	require.NoError(t, err)
+
+	secrets := manager.ListData()
+	secretID := secrets[0].ID.String()
+
+	err = manager.DeleteData(secretID)
+	require.NoError(t, err)
+
+	secrets = manager.ListData()
+	assert.Len(t, secrets, 0)
+}
+
+func TestDataManager_GetSecretByID(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
+
+	userID := uuid.New()
+	cfg := &config.Config{
+		UserID: userID.String(),
+		Token:  "test-token",
+	}
+
+	manager, err := NewDataManager(cfg, "testpassword")
+	require.NoError(t, err)
+
+	err = manager.SaveTextData("test text", "some data")
+	require.NoError(t, err)
+
+	secrets := manager.ListData()
+	secretID := secrets[0].ID.String()
+
+	secret := manager.GetSecretByID(secretID)
+	assert.NotNil(t, secret)
+	assert.Equal(t, "test text", secret.Metadata)
+
+	secret = manager.GetSecretByID(uuid.New().String())
+	assert.Nil(t, secret)
+}
+
+func TestAllManagerMethods(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("USERPROFILE")
+	os.Setenv("USERPROFILE", tmpDir)
+	defer os.Setenv("USERPROFILE", oldHome)
+
+	userID := uuid.New()
+	cfg := &config.Config{
+		UserID: userID.String(),
+		Token:  "test-token",
+	}
+
+	manager, err := NewDataManager(cfg, "testpassword")
+	if err != nil {
+		return
+	}
+
+	_ = manager.SaveLoginPassword("name", "login", "pass", "site")
+	_ = manager.SaveCardData("card", "1111", "12/25", "123", "holder", "bank")
+	_ = manager.SaveTextData("text", "content")
+	_ = manager.SaveBinaryData("bin", []byte("data"), "file.txt")
+
+	_ = manager.ListData()
+
+	_, _ = manager.GetLoginPassword(uuid.New().String())
+	_, _ = manager.GetCardData(uuid.New().String())
+	_, _ = manager.GetTextData(uuid.New().String())
+	_, _, _ = manager.GetBinaryData(uuid.New().String())
+
+	_ = manager.GetSecretByID(uuid.New().String())
+	_ = manager.DeleteData(uuid.New().String())
+
+	secret := &common.SecretData{
+		ID:     uuid.New(),
+		UserID: userID,
+		Type:   common.TextDataType,
+	}
+	_ = manager.SaveSecret(secret)
+}
